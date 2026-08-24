@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>나나툴</title>
+    <link rel="stylesheet" href="assets/pretendard-local.css">
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Nana Tool</p>
+        <h1>나나툴</h1>
+      </div>
+      <div class="header-actions">
+        <a class="text-button release-update-link" data-release-update hidden></a>
+        <a
+          id="open-gallery"
+          class="text-button"
+          href="gallery.html"
+          target="_blank"
+          rel="noreferrer"
+        >갤러리아</a>
+        <button id="open-options" class="text-button" type="button">전체 설정</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel" aria-labelledby="filter-title">
+        <div class="section-heading">
+          <h2 id="filter-title">현재 적용</h2>
+        </div>
+
+        <label class="switch-row">
+          <span>
+            <strong>유동 게시물 숨기기</strong>
+            <small>목록에서 IP 작성 글을 감춥니다.</small>
+          </span>
+          <input id="hide-posts" type="checkbox">
+          <span class="switch" aria-hidden="true"></span>
+        </label>
+
+        <label class="switch-row">
+          <span>
+            <strong>유동 댓글 숨기기</strong>
+            <small>동적으로 추가된 댓글에도 적용됩니다.</small>
+          </span>
+          <input id="hide-comments" type="checkbox">
+          <span class="switch" aria-hidden="true"></span>
+        </label>
+
+      </section>
+
+      <section
+        id="write-subject-panel"
+        class="panel"
+        aria-labelledby="write-subject-title"
+        hidden
+      >
+        <div class="section-heading">
+          <h2 id="write-subject-title">글쓰기 말머리</h2>
+          <span id="write-subject-gallery" class="status-chip gallery-chip"></span>
+        </div>
+
+        <label class="switch-row">
+          <span>
+            <strong>보고 있던 말머리 우선</strong>
+            <small>현재 보고 있는 탭의 말머리를 글쓰기에 먼저 적용합니다.</small>
+          </span>
+          <input id="write-subject-follow" type="checkbox">
+          <span class="switch" aria-hidden="true"></span>
+        </label>
+
+        <label class="field write-subject-field">
+          <span>기본 말머리</span>
+          <select id="write-subject-default" aria-label="글쓰기 기본 말머리"></select>
+          <small>현재 말머리를 적용할 수 없을 때 사용합니다.</small>
+        </label>
+      </section>
+
+      <section id="bookmark-panel" class="panel" aria-labelledby="bookmark-title" hidden>
+        <div class="section-heading">
+          <h2 id="bookmark-title">이 게시물 북마크</h2>
+          <span class="status-chip">북마크</span>
+        </div>
+        <p id="bookmark-page-title" class="bookmark-title"></p>
+
+        <label class="field">
+          <span>폴더</span>
+          <select id="bookmark-folder"></select>
+        </label>
+
+        <label class="field">
+          <span>메모</span>
+          <textarea
+            id="bookmark-note"
+            rows="3"
+            maxlength="2000"
+            placeholder="나중에 떠올릴 내용을 적어두세요."
+          ></textarea>
+        </label>
+
+        <button id="save-bookmark" class="primary-button" type="button">
+          로컬에 저장
+        </button>
+      </section>
+
+      <section id="author-panel" class="panel" aria-labelledby="author-title" hidden>
+        <div class="section-heading">
+          <h2 id="author-title">현재 작성자</h2>
+        </div>
+        <p id="author-name" class="author-name"></p>
+        <button id="highlight-author" class="primary-button" type="button">
+          이 작성자 강조
+        </button>
+      </section>
+
+      <section id="bookmark-unavailable" class="empty-card">
+        게시물 보기 페이지에서 북마크를 추가할 수 있습니다.
+      </section>
+    </main>
+
+    <p id="message" class="message" role="status" aria-live="polite"></p>
+
+    <script src="core.js"></script>
+    <script src="assets/release-update.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run unit tests
+        run: node --test tests/*.test.js
+      - name: Validate tag and manifest version
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
+          if [[ "$TAG_VERSION" != "$MANIFEST_VERSION" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match manifest version $MANIFEST_VERSION" >&2
+            exit 1
+          fi
+      - name: Build release ZIP
+        shell: pwsh
+        run: ./scripts/build-release.ps1 -OutputDirectory dist
+      - name: Verify release ZIP and checksum
+        shell: pwsh
+        run: ./scripts/verify-release.ps1 -OutputDirectory dist
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ARCHIVE="dist/nanatool-$GITHUB_REF_NAME.zip"
+          ASSETS=(
+            "$ARCHIVE"
+            "dist/nanatool-$GITHUB_REF_NAME.sha256"
+          )
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${ASSETS[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${ASSETS[@]}" \
+              --verify-tag \
+              --title "나나툴 $GITHUB_REF_NAME" \
+              --notes-file .github/RELEASE_NOTES.md
+          fi

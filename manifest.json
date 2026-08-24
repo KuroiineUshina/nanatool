@@ -1,0 +1,64 @@
+{
+  "manifest_version": 3,
+  "name": "나나툴",
+  "short_name": "나나툴",
+  "version": "1.0.0",
+  "description": "나나툴 — 디시인사이드 말머리·작성자 필터, 글쓰기 말머리 자동 선택, 갤러리별 문구와 로컬 북마크",
+  "minimum_chrome_version": "105",
+  "permissions": [
+    "alarms",
+    "declarativeNetRequestWithHostAccess",
+    "storage",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "https://api.github.com/*",
+    "https://gall.dcinside.com/*",
+    "https://gallog.dcinside.com/*",
+    "https://m.dcinside.com/*",
+    "https://*.dcinside.co.kr/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "나나툴",
+    "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://gall.dcinside.com/*",
+        "https://m.dcinside.com/*"
+      ],
+      "css": [
+        "assets/pretendard-local.css",
+        "content.css"
+      ],
+      "js": [
+        "assets/profile-card-image.js",
+        "core.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "embedded.html"
+      ],
+      "matches": [
+        "https://gall.dcinside.com/*",
+        "https://m.dcinside.com/*"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+@font-face {
+  font-display: swap;
+  font-family: "Pretendard";
+  font-style: normal;
+  font-weight: 400;
+  src: local("Pretendard"), local("Pretendard Regular");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Pretendard";
+  font-style: normal;
+  font-weight: 500;
+  src: local("Pretendard Medium"), local("Pretendard");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Pretendard";
+  font-style: normal;
+  font-weight: 600;
+  src: local("Pretendard SemiBold"), local("Pretendard Medium"), local("Pretendard");
+}

@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <title>나나툴 DOM 테스트</title>
+    <link rel="stylesheet" href="../assets/pretendard-local.css">
+    <link rel="canonical" href="https://gall.dcinside.com/board/view/?id=test_gallery&no=123">
+    <link rel="stylesheet" href="../content.css">
+    <style>
+      body {
+        font: 14px/1.5 "Pretendard", "Pretendard Variable", sans-serif;
+        margin: 30px auto;
+        max-width: 860px;
+      }
+      .pass { color: #16733b; }
+      .fail { color: #a22940; }
+      table { border-collapse: collapse; }
+      td { border: 1px solid #ddd; padding: 5px; }
+      .subject-toolbar {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+      }
+      .subject-toolbar > ul {
+        align-items: center;
+        display: flex;
+        gap: 5px;
+        list-style: none;
+        margin: 0 0 12px;
+        padding: 0;
+      }
+      .subject-toolbar a,
+      .subject-toolbar button {
+        color: #343875;
+        font: inherit;
+        padding: 3px 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="login_box" class="login_box">
+      <div class="user_info">
+        <strong>테스트사용자님</strong>
+        <a href="https://gallog.dcinside.com/tester">갤로그</a>
+      </div>
+      <div class="manager_list">
+        <a href="/mgallery/board/lists/?id=managed_main">
+          <img src="https://nstatic.dcinside.com/dc/w/images/managernik.gif" alt="">
+          메인 운영 갤러리
+        </a>
+      </div>
+      <div class="sub_manager_list">
+        <a href="/mini/board/lists/?id=managed_sub">
+          <img src="https://nstatic.dcinside.com/dc/w/images/sub_managernik.gif" alt="">
+          보조 운영 갤러리
+        </a>
+      </div>
+    </div>
+    <h1>나나툴 DOM 테스트</h1>
+    <div class="subject-toolbar">
+      <ul id="array-tabs" class="array_tab">
+        <li><a href="#all">전체글</a></li>
+        <li><a href="#best">개념글</a></li>
+        <li><a href="#notice">공지</a></li>
+      </ul>
+      <ul id="subject-tabs" class="fixture-subject-links">
+        <li><a href="#a" data-no="10">A</a></li>
+        <li><a href="#b" data-no="30">B</a></li>
+        <li><a href="#c" data-no="40">🐥C</a></li>
+        <li>
+          <button type="button" aria-label="말머리 더 보기">▼</button>
+          <ul hidden>
+            <li><a href="#d" data-no="50">D</a></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <ol id="results"></ol>
+    <p id="summary"></p>
+
+    <table class="gall_list">
+      <tbody>
+        <tr id="anonymous-post" class="ub-content us-post" data-no="123">
+          <td class="gall_subject">A</td>
+          <td class="gall_tit">유동 게시물</td>
+          <td
+            id="anonymous-writer"
+            class="gall_writer ub-writer"
+            data-nick="ㅇㅇ"
+            data-uid=""
+            data-ip="127.0"
+            data-loc="list"
+          >
+            <span class="nickname">ㅇㅇ</span><span class="ip">(127.0)</span>
+          </td>
+        </tr>
+        <tr id="fixed-post" class="ub-content us-post" data-no="124">
+          <td class="gall_subject">B</td>
+          <td class="gall_tit">고닉 게시물</td>
+          <td
+            id="fixed-writer"
+            class="gall_writer ub-writer"
+            data-nick="고정닉"
+            data-uid="fixed_user"
+            data-ip=""
+            data-loc="list"
+          >
+            <span class="nickname in">고정닉</span>
+            <a class="writer_nikcon"><img src="https://nstatic.dcinside.com/fix_nik.gif" alt=""></a>
+          </td>
+        </tr>
+        <tr id="semi-post" class="ub-content us-post" data-no="125">
+          <td class="gall_subject">A</td>
+          <td class="gall_tit">반고닉 게시물</td>
+          <td
+            id="semi-writer"
+            class="gall_writer ub-writer"
+            data-nick="반고닉"
+            data-uid="semi_user"
+            data-ip=""
+            data-loc="list"
+          >
+            <span class="nickname in">반고닉</span>
+            <a class="writer_nikcon"><img src="https://nstatic.dcinside.com/half_fix_nik.gif" alt=""></a>
+          </td>
+        </tr>
+        <tr id="notice-post" class="ub-content us-post notice" data-no="126">
+          <td class="gall_subject">B</td>
+          <td class="gall_tit">공지 게시물</td>
+          <td class="gall_writer ub-writer" data-nick="운영자" data-uid="admin" data-ip="" data-loc="list">
+            <span class="nickname in">운영자</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div id="bottom_listwrap">
+      <table class="gall_list">
+        <tbody>
+          <tr id="bottom-anonymous-post" class="ub-content">
+            <td class="gall_num">201</td>
+            <td class="gall_subject">B</td>
+            <td class="gall_tit"><a href="/mgallery/board/view/?id=test_gallery&amp;no=201&amp;page=1">하단 유동 게시물</a></td>
+            <td
+              id="bottom-anonymous-writer"
+              class="gall_writer ub-writer"
+              data-nick="ㅇㅇ"
+              data-uid=""
+              data-ip="192.0"
+              data-loc="list"
+            ><span class="nickname">ㅇㅇ</span><span class="ip">(192.0)</span></td>
+          </tr>
+          <tr id="bottom-fixed-post" class="ub-content">
+            <td class="gall_num">202</td>
+            <td class="gall_subject">A</td>
+            <td class="gall_tit"><a href="/mgallery/board/view/?id=test_gallery&amp;no=202&amp;page=1">하단 고닉 게시물</a></td>
+            <td
+              id="bottom-fixed-writer"
+              class="gall_writer ub-writer"
+              data-nick="하단고닉"
+              data-uid="fixed_user"
+              data-ip=""
+              data-loc="list"
+            ><span class="nickname in">하단고닉</span></td>
+          </tr>
+          <tr id="bottom-ad-row" class="ub-content">
+            <td class="gall_num">-</td>
+            <td class="gall_subject">AD</td>
+            <td class="gall_tit"><a href="https://example.com/">광고</a></td>
+            <td class="gall_writer ub-writer" user_name="운영자">운영자</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="comment_wrap">
+      <ul class="comment_box">
+        <li id="comment_li_1" class="ub-content">
+          <span
+            id="anonymous-comment-writer"
+            class="gall_writer ub-writer"
+            data-nick="ㅇㅇ"
+            data-uid=""
+            data-ip="10.0"
+          >
+            <span class="nickname">ㅇㅇ</span><span class="ip">(10.0)</span>
+          </span>
+        </li>
+      </ul>
+      <div class="cmt_write_box">
+        <textarea id="comment-text" maxlength="80">댓글 내용</textarea>
+        <button id="comment-submit" type="button">등록</button>
+      </div>
+    </div>
+
+    <div class="gallview_head">
+      <h3 class="title_subject">테스트 게시물 제목</h3>
+      <div
+        id="view-writer"
+        class="gall_writer ub-writer"
+        data-nick="고정닉"
+        data-uid="fixed_user"
+        data-ip=""
+        data-loc="view"
+      >
+        <span class="nickname">고정닉</span>
+        <div class="fr"></div>
+      </div>
+    </div>
+
+    <div id="post-body" class="writing_view_box">
+      <p>테스트 본문</p>
+      <img
+        id="post-image"
+        src="https://dcimg2.dcinside.co.kr/viewimage.php?id=test_gallery&amp;no=44"
+        alt="테스트 본문 이미지"
+        width="640"
+        height="480"
+      >
+    </div>
+
+    <div class="view_bottom_btnbox">
+      <button id="original-edit" type="button">수정</button>
+      <button id="original-delete" type="button">삭제</button>
+    </div>
+
+    <form id="write-form" name="write" action="/board/forms/article_submit">
+      <input id="id" name="id" value="test_gallery">
+      <input id="r_key" name="r_key" value="fixture-r-key">
+      <input id="gallery_no" name="gallery_no" value="123">
+      <input id="_GALLTYPE_" name="_GALLTYPE_" value="G">
+      <input id="upload_status" name="upload_status" value="N">
+      <input id="subject" name="subject" value="">
+      <input id="headtext" name="headtext" value="20">
+      <ul>
+        <li data-no="0" data-val="일반">일반</li>
+        <li data-no="10" data-val="A">A</li>
+        <li class="sel" data-no="20" data-val="정보"><em class="sp_img"></em>정보</li>
+      </ul>
+      <div class="note-editable" contenteditable="true"><p>원래 내용</p></div>
+      <textarea id="memo" name="memo"></textarea>
+      <button type="submit">등록</button>
+    </form>
+
+    <script src="test-bootstrap.js"></script>
+    <script src="../assets/profile-card-image.js"></script>
+    <script src="../core.js"></script>
+    <script src="../content.js"></script>
+    <script src="dom-tests.js"></script>
+  </body>
+</html>

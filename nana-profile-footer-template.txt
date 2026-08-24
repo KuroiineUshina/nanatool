@@ -1,0 +1,22 @@
+<table data-nanatool-profile-card data-nanatool-profile-layout="template-v5" cellpadding="0" cellspacing="0" border="0" style="width:auto;max-width:456px;margin:28px auto 10px;border-collapse:separate;border-spacing:0;background-color:transparent;color:#171b31;font-family:Pretendard,'Noto Sans KR','Malgun Gothic',sans-serif;text-align:left;table-layout:auto;">
+  <tbody>
+    <tr>
+      <td width="140" valign="middle" style="width:140px;padding:0;background-color:transparent;text-align:left;vertical-align:middle;">
+        <img src="https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&amp;gid={{갤로그ID}}" alt="{{닉네임}} 갤로그 프로필 이미지" width="116" height="116" style="display:block;width:116px;height:116px;margin:0;padding:0;border:0;border-radius:50%;box-sizing:border-box;object-fit:cover;object-position:center;vertical-align:middle;">
+      </td>
+      <td valign="middle" style="width:auto;padding:0 0 0 12px;background-color:transparent;text-align:left;vertical-align:middle;">
+        <a data-nanatool-gallog href="{{갤로그주소}}" target="_blank" rel="noreferrer" style="color:#14182f;font-size:32px;font-weight:800;line-height:1.08;text-decoration:none;white-space:nowrap;">{{닉네임}}</a>
+        <p style="margin:7px 0 0;padding:0;color:#626c88;font-size:11px;font-weight:700;line-height:1.35;">@{{갤로그ID}}</p>
+        <p style="margin:17px 0 0;padding:0;color:#171b31;font-size:11px;line-height:1.5;white-space:nowrap;"><span style="display:inline-block;white-space:nowrap;vertical-align:baseline;"><span style="color:#626c88;font-size:11px;font-weight:600;line-height:1.45;">글</span> <strong style="color:#171b31;font-size:11px;font-weight:800;line-height:1.45;">{{게시글수}}</strong></span><span style="margin:0 10px;color:#8e97b0;font-size:11px;font-weight:700;">·</span><span style="display:inline-block;white-space:nowrap;vertical-align:baseline;"><span style="color:#626c88;font-size:11px;font-weight:600;line-height:1.45;">댓글</span> <strong style="color:#171b31;font-size:11px;font-weight:800;line-height:1.45;">{{댓글수}}</strong></span><span style="margin:0 10px;color:#8e97b0;font-size:11px;font-weight:700;">·</span><span style="display:inline-block;white-space:nowrap;vertical-align:baseline;"><span style="color:#626c88;font-size:11px;font-weight:600;line-height:1.45;">글댓비</span> <strong style="color:#4558ca;font-size:11px;font-weight:800;line-height:1.45;">{{글댓비}}</strong></span></p>
+        <p style="margin:6px 0 0;padding:0;color:#171b31;font-size:10px;line-height:1.45;white-space:nowrap;"><span style="display:inline-block;white-space:nowrap;vertical-align:baseline;"><span style="color:#626c88;font-size:10px;font-weight:600;line-height:1.45;">오늘 방문</span> <strong style="color:#171b31;font-size:10px;font-weight:800;line-height:1.45;">{{오늘방문자}}</strong></span><span style="margin:0 8px;color:#8e97b0;font-size:10px;font-weight:700;">·</span><span style="display:inline-block;white-space:nowrap;vertical-align:baseline;"><span style="color:#626c88;font-size:10px;font-weight:600;line-height:1.45;">총 방문</span> <strong style="color:#171b31;font-size:10px;font-weight:800;line-height:1.45;">{{총방문자}}</strong></span></p>
+      </td>
+    </tr>
+    <tr data-nanatool-managed-section>
+      <td colspan="2" valign="top" style="padding:12px 0 0;background-color:transparent;text-align:left;vertical-align:top;">
+        <p style="margin:0 0 7px;padding:0;color:#626c88;font-size:10px;font-weight:700;line-height:1.35;text-align:left;">운영 갤러리 <span style="color:#818aa4;font-size:10px;font-weight:600;">{{운영갤러리수}}개</span></p>
+        <div data-nanatool-managed-galleries style="margin:0;padding:0;text-align:left;"><a data-nanatool-managed-gallery-template target="_blank" rel="noreferrer" style="display:inline-block;max-width:100%;margin:0 18px 5px 0;color:#20243a;font-size:11px;font-weight:700;line-height:1.55;text-decoration:none;vertical-align:middle;white-space:nowrap;"><img data-nanatool-managed-gallery-badge alt="" width="12" height="11" style="display:inline-block;width:12px;height:11px;margin:0 4px 0 0;padding:0;border:0;vertical-align:middle;"><span data-nanatool-managed-gallery-role style="margin-right:5px;color:#59617a;font-size:10px;font-weight:800;line-height:1.5;white-space:nowrap;">운영</span><span data-nanatool-managed-gallery-name style="max-width:180px;white-space:nowrap;vertical-align:middle;">갤러리</span></a></div>
+      </td>
+    </tr>
+  </tbody>
+</table>
+

@@ -1,0 +1,16 @@
+# Local and generated files
+dist/
+.codex/
+.codex-remote-attachments/
+*.log
+
+# Internal project notes
+반성문.md
+design-qa.md
+
+# Retired local-only default artwork
+assets/bubble-image.js
+
+# Unused Chrome Web Store preparation assets
+assets/store/
+STORE_LISTING.md
