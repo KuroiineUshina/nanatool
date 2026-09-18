@@ -2,7 +2,7 @@
   <tbody>
     <tr>
       <td width="140" valign="middle" style="width:140px;padding:0;background-color:transparent;text-align:left;vertical-align:middle;">
-        <img src="https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&amp;gid={{갤로그ID}}" alt="{{닉네임}} 갤로그 프로필 이미지" width="116" height="116" style="display:block;width:116px;height:116px;margin:0;padding:0;border:0;border-radius:50%;box-sizing:border-box;object-fit:cover;object-position:center;vertical-align:middle;">
+        <img data-nanatool-gallog-profile src="{{갤로그프로필이미지}}" alt="{{닉네임}} 갤로그 프로필 이미지" width="116" height="116" style="display:block;width:116px;height:116px;margin:0;padding:0;border:0;border-radius:50%;box-sizing:border-box;object-fit:cover;object-position:center;vertical-align:middle;">
       </td>
       <td valign="middle" style="width:auto;padding:0 0 0 12px;background-color:transparent;text-align:left;vertical-align:middle;">
         <a data-nanatool-gallog href="{{갤로그주소}}" target="_blank" rel="noreferrer" style="color:#14182f;font-size:32px;font-weight:800;line-height:1.08;text-decoration:none;white-space:nowrap;">{{닉네임}}</a>
@@ -19,4 +19,3 @@
     </tr>
   </tbody>
 </table>
-

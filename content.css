@@ -56,6 +56,7 @@ html.dcf-hide-anonymous-comments .dcf-anonymous-comment {
 }
 
 #dcf-subject-filter-panel {
+  --dcf-subject-filter-panel-opacity: 1;
   background: #ffffff !important;
   border: 1px solid #cfd2df !important;
   border-radius: 8px !important;
@@ -369,9 +370,69 @@ html.dcf-hide-anonymous-comments .dcf-anonymous-comment {
   padding: 7px 10px 7px 12px !important;
 }
 
-.dcf-subject-filter-footer [data-dcf-subject-status] {
-  color: #74788e !important;
+
+.dcf-subject-filter-opacity {
+  align-items: center !important;
+  color: #5f6378 !important;
+  display: grid !important;
+  flex: 1 1 auto !important;
+  gap: 6px !important;
+  grid-template-columns: auto minmax(72px, 1fr) 34px !important;
+  margin: 0 10px 0 0 !important;
+  max-width: 205px !important;
+  min-width: 0 !important;
+}
+
+.dcf-subject-filter-opacity > span,
+.dcf-subject-filter-opacity > output {
   font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.dcf-subject-filter-opacity > output {
+  font-variant-numeric: tabular-nums !important;
+  text-align: right !important;
+}
+
+#dcf-subject-filter-opacity {
+  appearance: none !important;
+  background: rgba(107, 119, 168, 0.24) !important;
+  border-radius: 999px !important;
+  cursor: pointer !important;
+  height: 4px !important;
+  margin: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+#dcf-subject-filter-opacity::-webkit-slider-thumb {
+  appearance: none !important;
+  background: #6d7fe3 !important;
+  border-radius: 50% !important;
+  box-shadow: 0 2px 5px rgba(40, 50, 101, 0.28) !important;
+  height: 14px !important;
+  width: 14px !important;
+}
+
+#dcf-subject-filter-opacity::-moz-range-thumb {
+  background: #6d7fe3 !important;
+  border-radius: 50% !important;
+  box-shadow: 0 2px 5px rgba(40, 50, 101, 0.28) !important;
+  height: 14px !important;
+  width: 14px !important;
+}
+
+#dcf-subject-filter-opacity:focus-visible {
+  outline: 2px solid rgba(75, 79, 156, 0.62) !important;
+  outline-offset: 4px !important;
+}
+
+#dcf-subject-filter-opacity:disabled {
+  cursor: wait !important;
+  opacity: 0.55 !important;
 }
 
 .dcf-subject-filter-clear {
@@ -523,7 +584,12 @@ html.dcf-hide-anonymous-comments .dcf-anonymous-comment {
 }
 
 #dcf-subject-filter-panel {
-  background-color: rgba(235, 242, 255, 0.07) !important;
+  background-color: rgba(
+    235,
+    242,
+    255,
+    var(--dcf-subject-filter-panel-opacity, 1)
+  ) !important;
   background-image: linear-gradient(145deg, rgba(255, 255, 255, 0.06), rgba(215, 226, 255, 0.01)) !important;
   border-color: rgba(255, 255, 255, 0.34) !important;
   border-radius: 17px !important;
@@ -623,7 +689,12 @@ html:has(#css-darkmode) #dcf-top-post-actions button {
 }
 
 html:has(#css-darkmode) #dcf-subject-filter-panel {
-  background-color: rgba(12, 18, 32, 0.07) !important;
+  background-color: rgba(
+    12,
+    18,
+    32,
+    var(--dcf-subject-filter-panel-opacity, 1)
+  ) !important;
 }
 
 html:has(#css-darkmode) #dcf-subject-write-default {
@@ -650,9 +721,13 @@ html:has(#css-darkmode) .dcf-subject-filter-option:has(input:checked) {
 html:has(#css-darkmode) .dcf-subject-filter-close,
 html:has(#css-darkmode) .dcf-subject-filter-mode-row [data-dcf-mode],
 html:has(#css-darkmode) .dcf-subject-write-settings [data-dcf-write-subject-status],
-html:has(#css-darkmode) .dcf-subject-filter-footer [data-dcf-subject-status],
+html:has(#css-darkmode) .dcf-subject-filter-opacity,
 html:has(#css-darkmode) .dcf-subject-filter-empty {
   color: #d3d9e8 !important;
+}
+
+html:has(#css-darkmode) #dcf-subject-filter-opacity {
+  background: rgba(190, 201, 235, 0.3) !important;
 }
 
 html:has(#css-darkmode) #dcf-subject-filter-panel[data-mode="include"] [data-dcf-mode="include"],

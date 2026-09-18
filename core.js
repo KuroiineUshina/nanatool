@@ -2,7 +2,7 @@
   "use strict";
 
   const STATE_KEY = "dcFocusState";
-  const SCHEMA_VERSION = 12;
+  const SCHEMA_VERSION = 13;
   const DEFAULT_FOLDER_ID = "inbox";
   const DEFAULT_IMAGE_FOLDER_ID = "image-inbox";
   const SUBJECT_FILTER_MODES = Object.freeze(["all", "include", "exclude"]);
@@ -29,6 +29,10 @@
   const MAX_BUBBLE_SIZE = 120;
   const DEFAULT_BUBBLE_SIZE = 64;
   const BUBBLE_SIZE_STEP = 4;
+  const MIN_SUBJECT_FILTER_PANEL_OPACITY = 0;
+  const MAX_SUBJECT_FILTER_PANEL_OPACITY = 100;
+  const DEFAULT_SUBJECT_FILTER_PANEL_OPACITY = 100;
+  const SUBJECT_FILTER_PANEL_OPACITY_STEP = 5;
   const AFFIX_CSS_PROPERTIES = new Set([
     "background",
     "background-color",
@@ -167,6 +171,24 @@
       MIN_BUBBLE_SIZE +
       Math.round((clamped - MIN_BUBBLE_SIZE) / BUBBLE_SIZE_STEP) *
         BUBBLE_SIZE_STEP
+    );
+  }
+
+  function sanitizeSubjectFilterPanelOpacity(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return DEFAULT_SUBJECT_FILTER_PANEL_OPACITY;
+    }
+    const clamped = Math.min(
+      MAX_SUBJECT_FILTER_PANEL_OPACITY,
+      Math.max(MIN_SUBJECT_FILTER_PANEL_OPACITY, numeric)
+    );
+    return (
+      MIN_SUBJECT_FILTER_PANEL_OPACITY +
+      Math.round(
+        (clamped - MIN_SUBJECT_FILTER_PANEL_OPACITY) /
+          SUBJECT_FILTER_PANEL_OPACITY_STEP
+      ) * SUBJECT_FILTER_PANEL_OPACITY_STEP
     );
   }
 
@@ -379,6 +401,7 @@
         hideAnonymousComments: false,
         themeMode: "system",
         bubbleSize: DEFAULT_BUBBLE_SIZE,
+        subjectFilterPanelOpacity: DEFAULT_SUBJECT_FILTER_PANEL_OPACITY,
         bubbleImageDataUrl: ""
       },
       folders: [
@@ -714,6 +737,9 @@
         hideAnonymousComments: settings.hideAnonymousComments === true,
         themeMode: sanitizeThemeMode(settings.themeMode),
         bubbleSize: sanitizeBubbleSize(settings.bubbleSize),
+        subjectFilterPanelOpacity: sanitizeSubjectFilterPanelOpacity(
+          settings.subjectFilterPanelOpacity
+        ),
         bubbleImageDataUrl: sanitizeBubbleImageDataUrl(
           settings.bubbleImageDataUrl
         )
@@ -742,7 +768,8 @@
         hideAnonymousPosts: safe.settings.hideAnonymousPosts,
         hideAnonymousComments: safe.settings.hideAnonymousComments,
         themeMode: safe.settings.themeMode,
-        bubbleSize: safe.settings.bubbleSize
+        bubbleSize: safe.settings.bubbleSize,
+        subjectFilterPanelOpacity: safe.settings.subjectFilterPanelOpacity
       },
       highlights: clone(safe.highlights),
       galleryAffixesByGalleryKey: clone(safe.galleryAffixesByGalleryKey),
@@ -830,6 +857,10 @@
     MAX_BUBBLE_SIZE,
     DEFAULT_BUBBLE_SIZE,
     BUBBLE_SIZE_STEP,
+    MIN_SUBJECT_FILTER_PANEL_OPACITY,
+    MAX_SUBJECT_FILTER_PANEL_OPACITY,
+    DEFAULT_SUBJECT_FILTER_PANEL_OPACITY,
+    SUBJECT_FILTER_PANEL_OPACITY_STEP,
     clone,
     nowIso,
     makeId,
@@ -844,6 +875,7 @@
     sanitizeThemeMode,
     sanitizeBubbleImageDataUrl,
     sanitizeBubbleSize,
+    sanitizeSubjectFilterPanelOpacity,
     sanitizeSubjectFilterMode,
     subjectFilterModeLabel,
     sanitizeGalleryKind,

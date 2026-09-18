@@ -104,14 +104,16 @@ test("이전 이미지 필터 데이터는 새 스키마에서 제거한다", ()
       old: { key: "old", src: "https://example.com/old.png" }
     }
   });
-  assert.equal(state.schemaVersion, 12);
+  assert.equal(state.schemaVersion, 13);
   assert.deepEqual(Object.keys(state.settings), [
     "hideAnonymousPosts",
     "hideAnonymousComments",
     "themeMode",
     "bubbleSize",
+    "subjectFilterPanelOpacity",
     "bubbleImageDataUrl"
   ]);
+  assert.equal(state.settings.subjectFilterPanelOpacity, 100);
   assert.equal("blockedImagesByKey" in state, false);
 });
 
@@ -136,6 +138,19 @@ test("테마·버블 크기와 안전한 래스터 버블 이미지만 설정에
   assert.equal(invalid.settings.bubbleImageDataUrl, "");
   assert.equal(core.sanitizeBubbleSize("invalid"), 64);
   assert.equal(core.sanitizeBubbleSize(1), 40);
+});
+
+test("말머리 필터는 기본 불투명이고 투명도를 5% 단위로 정규화한다", () => {
+  assert.equal(core.sanitizeSubjectFilterPanelOpacity(undefined), 100);
+  assert.equal(core.sanitizeSubjectFilterPanelOpacity("invalid"), 100);
+  assert.equal(core.sanitizeSubjectFilterPanelOpacity(73), 75);
+  assert.equal(core.sanitizeSubjectFilterPanelOpacity(-1), 0);
+  assert.equal(core.sanitizeSubjectFilterPanelOpacity(101), 100);
+
+  const state = core.sanitizeState({
+    settings: { subjectFilterPanelOpacity: 62 }
+  });
+  assert.equal(state.settings.subjectFilterPanelOpacity, 60);
 });
 
 test("디시 이미지 주소와 이미지 북마크 폴더를 별도 스키마로 보존한다", () => {

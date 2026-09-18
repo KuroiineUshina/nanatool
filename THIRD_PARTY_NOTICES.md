@@ -11,12 +11,6 @@
 - The complete rounded-square picture-frame icon was created specifically for this project on 2026-08-24 with OpenAI image generation.
 - It is embedded in `assets/service-header.css` and shared by the Galleria and Settings headers.
 
-## Nana Tool fox-tool fallback artwork
-
-- Created specifically for this project on 2026-08-24 with OpenAI image generation.
-- Used only as the optional lightweight activity-card fallback in `assets/profile-card-image.js`.
-- Contains no third-party logo or trademark.
-
 ## DCInside
 
 - DCInside names, logos, page content, and trademarks belong to their respective owners.

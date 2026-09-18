@@ -30,6 +30,7 @@ const {
   sanitizeThemeMode,
   sanitizeBubbleImageDataUrl,
   sanitizeBubbleSize,
+  sanitizeSubjectFilterPanelOpacity,
   truncate,
   normalizeCase,
   normalizeText
@@ -113,7 +114,8 @@ function embeddedState(state) {
       hideAnonymousPosts: safe.settings.hideAnonymousPosts,
       hideAnonymousComments: safe.settings.hideAnonymousComments,
       themeMode: safe.settings.themeMode,
-      bubbleSize: safe.settings.bubbleSize
+      bubbleSize: safe.settings.bubbleSize,
+      subjectFilterPanelOpacity: safe.settings.subjectFilterPanelOpacity
     },
     folders: clone(safe.folders),
     bookmarks: clone(safe.bookmarks),
@@ -136,6 +138,7 @@ function isDcSender(sender) {
     return false;
   }
 }
+
 
 function imageSaveRateKey(sender) {
   const tabId = Number.isInteger(sender?.tab?.id) ? sender.tab.id : "page";
@@ -568,7 +571,12 @@ function canonicalGalleryListUrl(kind, id) {
 
 async function fetchDcText(
   url,
-  { ajax = false, timeout = PROFILE_FETCH_TIMEOUT } = {}
+  {
+    ajax = false,
+    timeout = PROFILE_FETCH_TIMEOUT,
+    credentials = "include",
+    redirect = "follow"
+  } = {}
 ) {
   const controller = new AbortController();
   const safeTimeout = Math.max(250, Number(timeout) || PROFILE_FETCH_TIMEOUT);
@@ -582,9 +590,9 @@ async function fetchDcText(
       : { Accept: "text/html,application/xhtml+xml" };
     const response = await fetch(url, {
       cache: "no-store",
-      credentials: "include",
+      credentials,
       headers,
-      redirect: "follow",
+      redirect,
       signal: controller.signal
     });
     assert(response.ok, `디시인사이드 응답 오류 (${response.status})`);
@@ -710,7 +718,14 @@ function sniffImageMime(buffer) {
   return "";
 }
 
-async function fetchDcImageBlob(sourceUrl) {
+async function fetchDcImageBlob(
+  sourceUrl,
+  {
+    maxBytes = DCFImageStore.MAX_IMAGE_BYTES,
+    credentials = "include",
+    redirect = "follow"
+  } = {}
+) {
   const url = canonicalizeDcImageUrl(sourceUrl);
   assert(url, "디시인사이드에 등록된 이미지만 저장할 수 있습니다.");
   await ensureImageRefererRule();
@@ -720,27 +735,28 @@ async function fetchDcImageBlob(sourceUrl) {
   try {
     const response = await fetch(url, {
       cache: "no-store",
-      credentials: "include",
+      credentials,
       headers: {
           Accept: "image/avif,image/webp,image/png,image/jpeg,image/gif,image/bmp,image/svg+xml,image/x-icon;q=0.9,*/*;q=0.1"
       },
-      redirect: "follow",
+      redirect,
       signal: controller.signal
     });
     assert(response.ok, `이미지 응답 오류 (${response.status})`);
+    const finalUrl = canonicalizeDcImageUrl(response.url || url);
     assert(
-      canonicalizeDcImageUrl(response.url || url),
+      finalUrl,
       "디시인사이드 밖으로 이동한 이미지는 저장하지 않습니다."
     );
 
     const bytes = await readLimitedResponse(
       response,
-      DCFImageStore.MAX_IMAGE_BYTES,
+      maxBytes,
       "이미지는 한 장당 30MB까지 저장할 수 있습니다."
     );
     assert(bytes.byteLength > 0, "이미지 데이터가 비어 있습니다.");
     assert(
-      bytes.byteLength <= DCFImageStore.MAX_IMAGE_BYTES,
+      bytes.byteLength <= maxBytes,
       "이미지는 한 장당 30MB까지 저장할 수 있습니다."
     );
     const mimeType = sniffImageMime(bytes);
@@ -749,7 +765,12 @@ async function fetchDcImageBlob(sourceUrl) {
     return {
       blob: new Blob([bytes], { type: mimeType }),
       mimeType,
-      size: bytes.byteLength
+      reportedMimeType: String(response.headers.get("content-type") || "")
+        .split(";", 1)[0]
+        .trim()
+        .toLowerCase(),
+      size: bytes.byteLength,
+      url: finalUrl
     };
   } catch (error) {
     if (error?.name === "AbortError") {
@@ -761,13 +782,11 @@ async function fetchDcImageBlob(sourceUrl) {
   }
 }
 
+
 async function fetchProfileSources(gallogId) {
   const hintedGallogId = sanitizeGallogId(gallogId);
-  const initialGallogUrl = hintedGallogId
-    ? `https://gallog.dcinside.com/${encodeURIComponent(hintedGallogId)}`
-    : "https://gallog.dcinside.com/";
   const [initialGallog, managed] = await Promise.allSettled([
-    fetchDcText(initialGallogUrl),
+    fetchDcText("https://gallog.dcinside.com/"),
     fetchDcText(MANAGED_GALLERY_LIST_URL, {
       ajax: true,
       timeout: MANAGED_GALLERY_FETCH_TIMEOUT
@@ -779,13 +798,18 @@ async function fetchProfileSources(gallogId) {
   );
 
   let gallog = initialGallog.value;
-  const resolvedGallogId =
-    hintedGallogId || gallogIdFromResponse(gallog.url, gallog.text);
+  const resolvedGallogId = gallogIdFromResponse(gallog.url, gallog.text);
   assert(
     resolvedGallogId,
     "인증된 내 갤로그 주소에서도 식별자를 찾지 못했습니다."
   );
-  if (!hintedGallogId && !gallogIdFromResponse(gallog.url, "")) {
+  if (hintedGallogId) {
+    assert(
+      hintedGallogId.toLowerCase() === resolvedGallogId.toLowerCase(),
+      "현재 로그인 계정과 활동 명함 계정이 다릅니다."
+    );
+  }
+  if (!gallogIdFromResponse(gallog.url, "")) {
     gallog = await fetchDcText(
       `https://gallog.dcinside.com/${encodeURIComponent(resolvedGallogId)}`
     );
@@ -938,6 +962,16 @@ function updateSettingsDraft(draft, patch) {
   if (Object.prototype.hasOwnProperty.call(patch, "bubbleSize")) {
     settings.bubbleSize = sanitizeBubbleSize(patch.bubbleSize);
   }
+  if (
+    Object.prototype.hasOwnProperty.call(
+      patch,
+      "subjectFilterPanelOpacity"
+    )
+  ) {
+    settings.subjectFilterPanelOpacity = sanitizeSubjectFilterPanelOpacity(
+      patch.subjectFilterPanelOpacity
+    );
+  }
 }
 
 function bookmarkPayload(input) {
@@ -1057,6 +1091,7 @@ async function handleMessage(message, sender) {
       const gallogId = sanitizeGallogId(message.gallogId);
       return { sources: await fetchProfileSources(gallogId) };
     }
+
 
     case "GET_PROFILE_ROLE_PAGES": {
       assert(
@@ -1210,6 +1245,18 @@ async function handleMessage(message, sender) {
             ...result
           }
         : { revision: state.revision, ...result };
+    }
+
+    case "SET_SUBJECT_FILTER_PANEL_OPACITY": {
+      assert(
+        isDcSender(sender),
+        "디시인사이드 페이지에서만 말머리 필터 투명도를 설정할 수 있습니다."
+      );
+      const opacity = sanitizeSubjectFilterPanelOpacity(message.opacity);
+      const { state } = await mutateState((draft) => {
+        draft.settings.subjectFilterPanelOpacity = opacity;
+      });
+      return { revision: state.revision, opacity };
     }
 
     case "DELETE_SUBJECT_FILTER": {

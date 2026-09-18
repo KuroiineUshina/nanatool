@@ -37,13 +37,14 @@ async function serviceHeaderVisual(page) {
 }
 
 const initialState = {
-  schemaVersion: 12,
+  schemaVersion: 13,
   revision: 1,
   settings: {
     hideAnonymousPosts: false,
     hideAnonymousComments: false,
     themeMode: "system",
     bubbleSize: 64,
+    subjectFilterPanelOpacity: 100,
     bubbleImageDataUrl: ""
   },
   folders: [
@@ -1086,11 +1087,11 @@ async function openLocalPage(browser, filename) {
 
     const content = await openLocalPage(browser, "tests/dom-fixture.html");
     await content.page.waitForFunction(
-      () => document.querySelector("#test-summary")?.dataset.total === "39"
+      () => document.querySelector("#test-summary")?.dataset.total === "41"
     );
     assert.equal(
       await content.page.locator("#test-summary").getAttribute("data-passed"),
-      "39",
+      "41",
       await content.page.locator("#results").innerText()
     );
     await content.page.waitForFunction(
@@ -1141,6 +1142,8 @@ async function openLocalPage(browser, filename) {
         profile: {
           gallogId: "tester",
           nickname: "테스트사용자",
+          profileImageUrl:
+            "https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&gid=tester&t=1787980878",
           posts: 120,
           comments: 360,
           todayVisitors: 7,
@@ -1189,7 +1192,7 @@ async function openLocalPage(browser, filename) {
     assert.ok(fullTemplateResult.htmlLength < 14000);
     assert.equal(
       fullTemplateResult.profileSrc,
-      "https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&gid=tester"
+      "https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&gid=tester&t=1787980878"
     );
     assert.equal(fullTemplateResult.topImageAbsent, true);
     assert.equal(fullTemplateResult.unresolved, false);
@@ -1197,7 +1200,7 @@ async function openLocalPage(browser, filename) {
       fullTemplateResult.text,
       /테스트사용자[\s\S]*120[\s\S]*360[\s\S]*1 : 3\.0[\s\S]*주딱 갤러리[\s\S]*파딱 갤러리/
     );
-    const queuedSubmission = await content.page.evaluate(async () => {
+    await content.page.evaluate(() => {
       const form = document.getElementById("write-form");
       const editor = form.querySelector(".note-editable");
       const memo = form.querySelector("textarea[name='memo']");
@@ -1215,7 +1218,7 @@ async function openLocalPage(browser, filename) {
       });
       DCFContentTest.setStateForTest(state);
       DCFContentTest.setProfileSnapshotForTest(null);
-      editor.innerHTML = "<p>자동 등록 테스트</p>";
+      editor.innerHTML = "<p>수동 재등록 테스트</p>";
       memo.value = "";
       const loginGallogLink = document.querySelector(
         "#login_box a[href*='gallog.dcinside.com/']"
@@ -1225,10 +1228,21 @@ async function openLocalPage(browser, filename) {
       loginGallogLink.remove();
 
       const originalSendMessage = chrome.runtime.sendMessage;
-      let identityRequestHint = null;
+      const testRecord = {
+        identityRequestHint: null,
+        profileRequests: 0,
+        nativeSubmits: 0,
+        syntheticBlocked: false,
+        originalSendMessage,
+        loginGallogLink,
+        loginGallogLinkParent,
+        loginGallogLinkNext
+      };
+      globalThis.__queuedProfileTest = testRecord;
       chrome.runtime.sendMessage = (message, callback) => {
         if (message.type === "GET_PROFILE_SOURCES") {
-          identityRequestHint = message.gallogId;
+          testRecord.profileRequests += 1;
+          testRecord.identityRequestHint = message.gallogId;
           globalThis.setTimeout(
             () => callback({
               ok: true,
@@ -1246,45 +1260,182 @@ async function openLocalPage(browser, filename) {
         originalSendMessage(message, callback);
       };
 
-      let resumedClicks = 0;
-      const stopNavigation = (event) => {
-        resumedClicks += 1;
+      testRecord.stopNavigation = (event) => {
+        testRecord.nativeSubmits += 1;
         event.preventDefault();
       };
-      button.addEventListener("click", stopNavigation);
+      form.addEventListener("submit", testRecord.stopNavigation);
       document.addEventListener(
         "click",
         DCFContentTest.handleEarlySubmission,
         true
       );
+      document.addEventListener(
+        "submit",
+        DCFContentTest.handleEarlySubmission,
+        true
+      );
       button.click();
-      const blockedInitially = resumedClicks === 0;
-      await new Promise((resolve) => globalThis.setTimeout(resolve, 160));
+      testRecord.syntheticBlocked = testRecord.nativeSubmits === 0;
+    });
+    await content.page.waitForFunction(
+      () =>
+        globalThis.__queuedProfileTest?.profileRequests === 1 &&
+        document.querySelector("#dcf-toast")?.textContent.includes(
+          "정보가 준비됐습니다"
+        )
+    );
+    await content.page.locator("#write-form button[type='submit']").click();
+    await content.page.waitForFunction(
+      () => globalThis.__queuedProfileTest?.nativeSubmits === 1
+    );
+    const queuedSubmission = await content.page.evaluate(() => {
+      const form = document.getElementById("write-form");
+      const editor = form.querySelector(".note-editable");
+      const memo = form.querySelector("textarea[name='memo']");
+      const testRecord = globalThis.__queuedProfileTest;
       document.removeEventListener(
         "click",
         DCFContentTest.handleEarlySubmission,
         true
       );
-      button.removeEventListener("click", stopNavigation);
-      chrome.runtime.sendMessage = originalSendMessage;
-      loginGallogLinkParent.insertBefore(
-        loginGallogLink,
-        loginGallogLinkNext
+      document.removeEventListener(
+        "submit",
+        DCFContentTest.handleEarlySubmission,
+        true
       );
+      form.removeEventListener("submit", testRecord.stopNavigation);
+      chrome.runtime.sendMessage = testRecord.originalSendMessage;
+      testRecord.loginGallogLinkParent.insertBefore(
+        testRecord.loginGallogLink,
+        testRecord.loginGallogLinkNext
+      );
+      delete globalThis.__queuedProfileTest;
 
       return {
-        blockedInitially,
-        identityRequestHint,
-        resumedClicks,
+        syntheticBlocked: testRecord.syntheticBlocked,
+        identityRequestHint: testRecord.identityRequestHint,
+        profileRequests: testRecord.profileRequests,
+        nativeSubmits: testRecord.nativeSubmits,
         cards: editor.querySelectorAll("[data-nanatool-profile-card]").length,
         memoReady: memo.value.includes("테스트사용자 120")
       };
     });
-    assert.equal(queuedSubmission.blockedInitially, true);
+    assert.equal(queuedSubmission.syntheticBlocked, true);
     assert.equal(queuedSubmission.identityRequestHint, "");
-    assert.equal(queuedSubmission.resumedClicks, 1);
+    assert.equal(queuedSubmission.profileRequests, 1);
+    assert.equal(queuedSubmission.nativeSubmits, 1);
     assert.equal(queuedSubmission.cards, 1);
     assert.equal(queuedSubmission.memoReady, true);
+    await content.page.evaluate(() => {
+      const form = document.getElementById("write-form");
+      const editor = form.querySelector(".note-editable");
+      const button = form.querySelector("button[type='submit']");
+      DCFContentTest.setStateForTest(
+        DCFCore.sanitizeState({
+          galleryAffixesByGalleryKey: {
+            "major:test_gallery": {
+              galleryKey: "major:test_gallery",
+              galleryKind: "major",
+              galleryId: "test_gallery",
+              postFooter:
+                '<div data-nanatool-profile-card>변경 전 {{닉네임}}</div>'
+            }
+          }
+        })
+      );
+      DCFContentTest.setProfileSnapshotForTest(null);
+      editor.innerHTML = "<p>템플릿 변경 레이스 검사</p>";
+      const record = {
+        originalSendMessage: chrome.runtime.sendMessage,
+        submits: 0
+      };
+      globalThis.__profileRaceTest = record;
+      chrome.runtime.sendMessage = (message, callback) => {
+        if (message.type === "GET_PROFILE_SOURCES") {
+          globalThis.setTimeout(
+            () =>
+              callback({
+                ok: true,
+                sources: {
+                  gallogId: "tester",
+                  gallogHtml:
+                    '<div class="nick_name">테스트사용자</div><h2 class="tit">게시글 <span class="num">120</span></h2>',
+                  managedPayload: ""
+                }
+              }),
+            120
+          );
+          return;
+        }
+        record.originalSendMessage(message, callback);
+      };
+      record.stopSubmit = (event) => {
+        record.submits += 1;
+        event.preventDefault();
+      };
+      form.addEventListener("submit", record.stopSubmit);
+      document.addEventListener(
+        "click",
+        DCFContentTest.handleEarlySubmission,
+        true
+      );
+      document.addEventListener(
+        "submit",
+        DCFContentTest.handleEarlySubmission,
+        true
+      );
+      record.button = button;
+    });
+    await content.page.locator("#write-form button[type='submit']").click();
+    await content.page.evaluate(() => {
+      DCFContentTest.setStateForTest(
+        DCFCore.sanitizeState({
+          galleryAffixesByGalleryKey: {
+            "major:test_gallery": {
+              galleryKey: "major:test_gallery",
+              galleryKind: "major",
+              galleryId: "test_gallery",
+              postFooter:
+                '<div data-nanatool-profile-card>변경 후 {{닉네임}}</div>'
+            }
+          }
+        })
+      );
+    });
+    await content.page.waitForFunction(
+      () =>
+        document.querySelector("#dcf-toast")?.textContent.includes(
+          "정보가 준비됐습니다"
+        ),
+      null,
+      { timeout: 3000 }
+    );
+    const profileRace = await content.page.evaluate(() => {
+      const form = document.getElementById("write-form");
+      const record = globalThis.__profileRaceTest;
+      document.removeEventListener(
+        "click",
+        DCFContentTest.handleEarlySubmission,
+        true
+      );
+      document.removeEventListener(
+        "submit",
+        DCFContentTest.handleEarlySubmission,
+        true
+      );
+      form.removeEventListener("submit", record.stopSubmit);
+      chrome.runtime.sendMessage = record.originalSendMessage;
+      delete globalThis.__profileRaceTest;
+      return {
+        submits: record.submits,
+        busy: form.getAttribute("aria-busy"),
+        cardCount: form.querySelectorAll("[data-nanatool-profile-card]").length
+      };
+    });
+    assert.equal(profileRace.submits, 0);
+    assert.equal(profileRace.busy, null);
+    assert.equal(profileRace.cardCount, 0);
     assert.equal(
       await content.page.evaluate(() =>
         document.fonts.check('14px "Pretendard"', "나나툴")
@@ -1316,7 +1467,40 @@ async function openLocalPage(browser, filename) {
       });
     assert.match(contentGlass.backdrop, /blur/);
     assert.ok(contentGlass.radius >= 16);
-    assert.ok(contentGlass.alpha <= 0.08);
+    assert.ok(contentGlass.alpha >= 0.99);
+    const opacitySlider = content.page.locator("#dcf-subject-filter-opacity");
+    assert.equal(await opacitySlider.getAttribute("min"), "0");
+    assert.equal(await opacitySlider.getAttribute("max"), "100");
+    assert.equal(await opacitySlider.getAttribute("step"), "5");
+    assert.equal(await opacitySlider.inputValue(), "100");
+    assert.equal(
+      await content.page.getByText("체크하면 바로 적용", { exact: true }).count(),
+      0
+    );
+    await opacitySlider.evaluate((element) => {
+      element.value = "50";
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    assert.equal(
+      await content.page
+        .locator("[data-dcf-subject-opacity-value]")
+        .textContent(),
+      "50%"
+    );
+    assert.ok(
+      Math.abs(
+        (await content.page
+          .locator("#dcf-subject-filter-panel")
+          .evaluate((element) => {
+            const value = getComputedStyle(element).backgroundColor;
+            return Number(value.match(/[\d.]+(?=\))/)?.[0] || 1);
+          })) - 0.5
+      ) < 0.01
+    );
+    await opacitySlider.evaluate((element) => {
+      element.value = "100";
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+    });
     for (const selector of [
       "#dcf-subject-filter-button",
       "#dcf-subject-filter-panel",
@@ -1455,7 +1639,7 @@ async function openLocalPage(browser, filename) {
           "#dcf-subject-write-default"
         ),
         footer: centers(
-          ".dcf-subject-filter-footer [data-dcf-subject-status]",
+          ".dcf-subject-filter-opacity",
           ".dcf-subject-filter-clear"
         ),
         topActions: centers(

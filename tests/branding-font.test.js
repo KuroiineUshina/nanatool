@@ -17,6 +17,7 @@ test("사용자 화면의 브랜드명을 나나툴로 통일한다", () => {
   assert.equal(manifest.short_name, "나나툴");
   assert.equal(manifest.action.default_title, "나나툴");
   assert.equal(manifest.version, "1.0.0");
+  assert.equal(manifest.minimum_chrome_version, "105");
 
   assert.match(read("popup.html"), /<p class="eyebrow">Nana Tool<\/p>/);
   assert.match(read("popup.html"), /<h1>나나툴<\/h1>/);
@@ -62,7 +63,7 @@ test("붙여넣은 꼬리말 템플릿을 활동 명함으로 치환한다", () 
   assert.match(template, /background-color:transparent/);
   assert.match(
     template,
-    /src="https:\/\/dcimg2\.dcinside\.co\.kr\/gallog_upimg\.php\?mode=profile&amp;gid=\{\{갤로그ID\}\}"/
+    /data-nanatool-gallog-profile[^>]*src="\{\{갤로그프로필이미지\}\}"/
   );
   assert.doesNotMatch(template, /data-nanatool-character|\{\{캐릭터이미지\}\}|mode=top/);
   assert.doesNotMatch(template, /border-left:1px solid #dce2f0/);
@@ -70,8 +71,8 @@ test("붙여넣은 꼬리말 템플릿을 활동 명함으로 치환한다", () 
   assert.doesNotMatch(template, /NANA TOOL · DC PROFILE/);
   assert.match(template, /width="116" height="116"/);
   assert.match(template, /border-radius:50%/);
-  assert.match(template, /gallog_upimg\.php[^>]*style="[^"]*border:0;/);
-  assert.doesNotMatch(template, /gallog_upimg\.php[^>]*border:1px/);
+  assert.match(template, /data-nanatool-gallog-profile[^>]*style="[^"]*border:0;/);
+  assert.doesNotMatch(template, /data-nanatool-gallog-profile[^>]*border:1px/);
   assert.match(template, />글<\/span>[\s\S]*?>댓글<\/span>[\s\S]*?>글댓비<\/span>/);
   assert.doesNotMatch(template, /font-size:15px/);
   assert.match(template, /font-size:11px;font-weight:800/);
@@ -86,13 +87,16 @@ test("붙여넣은 꼬리말 템플릿을 활동 명함으로 치환한다", () 
   assert.match(contentScript, /sub_managernik\.gif/);
   assert.match(backgroundScript, /ajax\/minor_ajax\/my_list/);
   assert.match(backgroundScript, /GET_PROFILE_SOURCES/);
-  assert.doesNotMatch(backgroundScript, /gallogProfileImageUrl|fetchGallogProfileImage/);
+  assert.doesNotMatch(backgroundScript, /GET_GALLOG_PROFILE_IMAGE/);
+  assert.doesNotMatch(backgroundScript, /upimg_temp_del/);
+  assert.doesNotMatch(contentScript, /ClipboardEvent|DataTransfer|requestSubmit/);
+  assert.match(contentScript, /등록 버튼을 다시 눌러 주세요/);
   assert.doesNotMatch(contentScript, /profileImageSource/);
   assert.doesNotMatch(backgroundScript, /GET_GALLOG_IMAGE_STATUS/);
-  assert.doesNotMatch(contentScript, /gallogImageUrl|갤로그프로필이미지|갤로그상단이미지/);
+  assert.match(contentScript, /gallogProfileImageUrl|갤로그프로필이미지/);
+  assert.doesNotMatch(contentScript, /갤로그상단이미지/);
   assert.match(contentScript, /void verifyProfileSnapshotRoles\(snapshot\)/);
-  assert.match(contentScript, /완료되면 자동으로 등록합니다/);
-  assert.match(contentScript, /replayPostSubmission\(request\)/);
+  assert.doesNotMatch(contentScript, /완료되면 자동으로 등록합니다/);
   assert.doesNotMatch(
     contentScript.match(/async function loadProfileSnapshot\(\)[\s\S]*?\n  \}/)?.[0] || "",
     /GET_PROFILE_ROLE_PAGES/
@@ -376,7 +380,7 @@ test("북마크 드래그 이동 UI와 닫힌 오버레이의 클릭 격리를 �
 
   assert.doesNotMatch(
     contentScript,
-    /(?:global|document)\.addEventListener\("pointerdown"/
+    /(?:global|document)\.addEventListener\("pointerdown",\s*handleFloating/
   );
   assert.match(
     contentScript,

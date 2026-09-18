@@ -33,6 +33,7 @@ const imageCache = {
 };
 const sandbox = {
   URL,
+  URLSearchParams,
   Blob,
   Response,
   Request,
@@ -43,6 +44,7 @@ const sandbox = {
   clearTimeout,
   AbortController,
   TextDecoder,
+  btoa: globalThis.btoa,
   fetch: async (input, options = {}) => {
     const url = String(input);
     fetchCalls.push({ url, options });
@@ -67,7 +69,10 @@ const sandbox = {
       );
     }
     if (url === "https://gallog.dcinside.com/tester") {
-      return new Response("<html><body>gallog</body></html>", { status: 200 });
+      return new Response(
+        '<html><head><link rel="canonical" href="https://gallog.dcinside.com/tester"></head><body><img id="profile_img" src="https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&amp;gid=tester&amp;t=1787980878"><div class="nick_name">테스트사용자</div>gallog</body></html>',
+        { status: 200 }
+      );
     }
     if (url === "https://gall.dcinside.com/ajax/minor_ajax/my_list") {
       return new Response('{"rows":[{"gall_id":"managed"}]}', {
@@ -194,6 +199,19 @@ const dcSender = {
 const dcViewSender = {
   url: "https://gall.dcinside.com/board/view/?id=test_gallery&no=123"
 };
+const profileWriteSender = {
+  id: "test",
+  url: "https://gall.dcinside.com/board/write/?id=test_gallery",
+  origin: "https://gall.dcinside.com",
+  documentId: "profile-document-1234",
+  documentLifecycle: "active",
+  frameId: 0,
+  tab: {
+    id: 77,
+    url: "https://gall.dcinside.com/board/write/?id=test_gallery"
+  }
+};
+const profileTransactionId = "123e4567-e89b-42d3-a456-426614174000";
 
 test("GitHub 릴리스 버전을 숫자로 비교하고 안전한 주소만 허용한다", () => {
   const {
@@ -363,6 +381,28 @@ test("임베디드 빠른 메뉴에는 전체 로컬 상태를 공개하지 않�
   assert.equal("bubbleImageDataUrl" in embedded.state.settings, false);
 });
 
+test("디시 페이지에서 말머리 필터 불투명도를 저장한다", async () => {
+  const saved = await sandbox.DCFBackgroundTest.handleMessage(
+    { type: "SET_SUBJECT_FILTER_PANEL_OPACITY", opacity: 73 },
+    dcSender
+  );
+  assert.equal(saved.opacity, 75);
+
+  const publicState = await sandbox.DCFBackgroundTest.handleMessage(
+    { type: "GET_PUBLIC_STATE" },
+    dcSender
+  );
+  assert.equal(publicState.state.settings.subjectFilterPanelOpacity, 75);
+
+  await assert.rejects(
+    sandbox.DCFBackgroundTest.handleMessage(
+      { type: "SET_SUBJECT_FILTER_PANEL_OPACITY", opacity: 50 },
+      extensionSender
+    ),
+    /디시인사이드 페이지에서만/
+  );
+});
+
 test("백그라운드가 갤러리별 말머리 필터를 저장하고 해제한다", async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
   const saved = await sandbox.DCFBackgroundTest.handleMessage(
@@ -523,6 +563,7 @@ test("활동 명함은 디시 운영 팝업의 공식 목록 응답만 읽는다
   assert.equal(roles.pages[0].galleryKey, "minor:managed");
   assert.match(roles.pages[0].html, /manager page/);
 });
+
 
 test("로그인 상자에 ID가 없어도 인증된 갤로그 루트에서 본인 ID를 찾는다", async () => {
   fetchCalls.length = 0;

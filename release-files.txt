@@ -22,5 +22,4 @@ assets/bootstrap-eye.svg
 assets/bootstrap-eye-slash.svg
 assets/pretendard-local.css
 assets/service-header.css
-assets/profile-card-image.js
 assets/release-update.js

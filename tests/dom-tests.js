@@ -14,7 +14,8 @@ function test(name, assertion) {
 const testState = DCFCore.sanitizeState({
   settings: {
     hideAnonymousPosts: false,
-    hideAnonymousComments: false
+    hideAnonymousComments: false,
+    subjectFilterPanelOpacity: 100
   },
   highlights: [
     {
@@ -304,10 +305,33 @@ test("설정창에 말머리 체크박스와 보기·안 보기 스위치를 표
       .map((option) => option.textContent)
       .join(",") === "사이트 기본값,A,B,🐥C,D" &&
     panel.querySelector("input[value='A']").checked &&
+    !panel.querySelector("[data-dcf-subject-status]") &&
+    panel.querySelector("#dcf-subject-filter-opacity")?.min === "0" &&
+    panel.querySelector("#dcf-subject-filter-opacity")?.max === "100" &&
+    panel.querySelector("#dcf-subject-filter-opacity")?.step === "5" &&
+    panel.querySelector("#dcf-subject-filter-opacity")?.value === "100" &&
+    panel.querySelector("[data-dcf-subject-opacity-value]")?.textContent ===
+      "100%" &&
+    panel.style.getPropertyValue("--dcf-subject-filter-panel-opacity") === "1" &&
     [...panel.querySelectorAll(".dcf-subject-filter-option span")]
       .map((element) => element.textContent)
       .join(",") === "A,B,🐥C,D"
   );
+});
+
+test("말머리 필터 불투명도 슬라이더를 움직이면 바로 미리 본다", () => {
+  const panel = document.getElementById("dcf-subject-filter-panel");
+  const slider = panel.querySelector("#dcf-subject-filter-opacity");
+  slider.value = "65";
+  slider.dispatchEvent(new Event("input", { bubbles: true }));
+  const passed =
+    panel.style.getPropertyValue("--dcf-subject-filter-panel-opacity") ===
+      "0.65" &&
+    panel.querySelector("[data-dcf-subject-opacity-value]")?.textContent ===
+      "65%";
+  slider.value = "100";
+  slider.dispatchEvent(new Event("input", { bubbles: true }));
+  return passed;
 });
 
 test("보고 있던 말머리를 기억해 글쓰기에서 기본값보다 먼저 선택", () => {
@@ -486,6 +510,18 @@ test("활동 명함을 글 꼬리말 맨 뒤에 한 번만 삽입", () => {
   return true;
 });
 
+test("갤로그 HTML에서 프로필 사진의 갱신 주소를 읽음", () => {
+  const profile = DCFContentTest.parseGallogProfile(
+    '<div class="galler_info"><strong class="nick_name">테스트사용자</strong></div>' +
+      '<img id="profile_img" src="https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&amp;gid=tester&amp;t=1787980878">',
+    "tester"
+  );
+  return (
+    profile.profileImageUrl ===
+    "https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&gid=tester&t=1787980878"
+  );
+});
+
 test("현재 명함은 저장된 꼬리말 CSS를 보존하고 값만 채움", () => {
   const source =
     '<table data-nanatool-profile-card data-nanatool-profile-layout="template-v5" style="width:auto;max-width:456px;background-color:transparent"><tbody><tr><td style="padding:7px"><img data-nanatool-character src="{{캐릭터이미지}}"><a data-nanatool-gallog>{{닉네임}}</a><strong>{{게시글수}}</strong></td></tr><tr data-nanatool-managed-section><td><div data-nanatool-managed-galleries><a data-nanatool-managed-gallery-template style="font-size:13px"><img data-nanatool-managed-gallery-badge><span data-nanatool-managed-gallery-role>운영</span><span data-nanatool-managed-gallery-name>갤러리</span></a></div></td></tr></tbody></table>';
@@ -536,14 +572,16 @@ test("현재 명함은 저장된 꼬리말 CSS를 보존하고 값만 채움", (
   return true;
 });
 
-test("꼬리말에 저장한 갤로그 프로필·상단 이미지 주소를 그대로 보존", () => {
+test("기존 꼬리말의 갤로그 프로필 주소만 최신 갱신 주소로 보정", () => {
   const source =
-    '<table data-nanatool-profile-card data-nanatool-profile-layout="template-v7"><tbody><tr><td><div><img src="https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=top&amp;gid=test_user"></div><img src="https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&amp;gid=test_user"><span>{{닉네임}}</span></td></tr></tbody></table>';
+    '<table data-nanatool-profile-card data-nanatool-profile-layout="template-v7"><tbody><tr><td><div><img src="https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=top&amp;gid=test_user"></div><img src="https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&amp;gid={{갤로그ID}}"><span>{{닉네임}}</span></td></tr></tbody></table>';
   const record = DCFContentTest.makePostFooterBlock(source, "", "", {
     savedAt: 789,
     profile: {
       gallogId: "tester",
       nickname: "테스트사용자",
+      profileImageUrl:
+        "https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&gid=tester&t=1787980878",
       posts: 1,
       comments: 2,
       todayVisitors: 3,
@@ -557,7 +595,7 @@ test("꼬리말에 저장한 갤로그 프로필·상단 이미지 주소를 그
   return (
     card?.getAttribute("data-nanatool-profile-layout") === "template-v7" &&
     profile?.getAttribute("src") ===
-      "https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&gid=test_user" &&
+      "https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&gid=tester&t=1787980878" &&
     top?.getAttribute("src") ===
       "https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=top&gid=test_user" &&
     card?.textContent.includes("테스트사용자") &&

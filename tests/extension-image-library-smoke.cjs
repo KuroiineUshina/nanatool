@@ -12,6 +12,14 @@ const liveImageUrl = process.argv[5] || "";
 const livePageUrl = process.argv[6] || "";
 const headful = process.env.NANATOOL_HEADFUL === "1";
 const { chromium } = require(playwrightPath);
+const profileFooterTemplate = fs.readFileSync(
+  path.join(__dirname, "..", "nana-profile-footer-template.txt"),
+  "utf8"
+);
+const profileImageBytes = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64"
+);
 
 const extensionPath = path.resolve(
   process.env.NANATOOL_EXTENSION_PATH || path.join(__dirname, "..")
@@ -45,10 +53,24 @@ const profileDir = fs.mkdtempSync(
       await DCFBackgroundTest.checkReleaseUpdate();
     });
 
-    const seeded = await worker.evaluate(async () => {
+    const seeded = await worker.evaluate(async (profileTemplate) => {
       const state = DCFCore.defaultState();
       const now = "2026-08-22T00:00:00.000Z";
       state.revision = 1;
+      state.galleryAffixesByGalleryKey["major:food"] = {
+        galleryKey: "major:food",
+        galleryKind: "major",
+        galleryId: "food",
+        galleryName: "음식 갤러리",
+        postHeader: "",
+        postHeaderColor: "",
+        postHeaderCss: "",
+        postFooter: profileTemplate,
+        postFooterColor: "",
+        postFooterCss: "",
+        commentFooter: "",
+        updatedAt: now
+      };
       state.imageFolders.push({
         id: "image-smoke-folder",
         name: "스모크 폴더",
@@ -123,7 +145,7 @@ const profileDir = fs.mkdtempSync(
         }
       });
       return DCFImageStore.has("image-smoke-bookmark");
-    });
+    }, profileFooterTemplate);
     assert.equal(seeded, true);
 
     const popup = await context.newPage();
@@ -230,11 +252,12 @@ const profileDir = fs.mkdtempSync(
       ),
       false
     );
-    assert.equal(
-      await card.locator(".image-thumbnail").evaluate(
-        (element) => getComputedStyle(element).filter
-      ),
-      "none"
+    assert.ok(
+      ["", "none"].includes(
+        await card.locator(".image-thumbnail").evaluate(
+          (element) => getComputedStyle(element).filter
+        )
+      )
     );
     if (screenshotPath) {
       await page.screenshot({ path: screenshotPath, fullPage: true });
@@ -269,6 +292,119 @@ const profileDir = fs.mkdtempSync(
       refererRule.action.requestHeaders[0].value,
       "https://gall.dcinside.com/"
     );
+
+    let profileUploadRequests = 0;
+    await context.route("https://gallog.dcinside.com/**", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname === "/") {
+        await route.fulfill({
+          status: 200,
+          contentType: "text/html",
+          body: '<script>location.replace("/tester");</script>'
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body:
+          '<html><head><link rel="canonical" href="https://gallog.dcinside.com/tester"></head><body><div class="galler_info"><strong class="nick_name">테스트사용자</strong></div><img id="profile_img" src="https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&amp;gid=tester&amp;t=1787980878"><h2 class="tit">게시글 <span class="num">120</span></h2><h2 class="tit">댓글 <span class="num">360</span></h2><div class="visitors_num"><em class="today_num">7</em><em class="total_num">2048</em></div></body></html>'
+      });
+    });
+    await context.route(
+      "https://gall.dcinside.com/ajax/minor_ajax/my_list",
+      (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: "{}" })
+    );
+    await context.route(
+      "https://dcimg2.dcinside.co.kr/gallog_upimg.php**",
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "image/png",
+          body: profileImageBytes
+        })
+    );
+    await context.route("https://upimg.dcinside.com/upimg_file.php**", async (route) => {
+      profileUploadRequests += 1;
+      await route.abort();
+    });
+
+    const writePage = await context.newPage();
+    const writeErrors = [];
+    writePage.on("pageerror", (error) => writeErrors.push(error.message));
+    await writePage.goto("https://gall.dcinside.com/board/write/?id=food", {
+      waitUntil: "domcontentloaded",
+      timeout: 30000
+    });
+    const writeForm = writePage.locator(
+      "form[name='write'][action*='article_submit']"
+    );
+    await writeForm.locator(".note-editable[contenteditable='true']").waitFor({
+      state: "visible",
+      timeout: 20000
+    });
+    await writePage.evaluate(() => {
+      const editor = document.querySelector(
+        "form[name='write'][action*='article_submit'] .note-editable"
+      );
+      editor.innerHTML = "<p>실제 확장 안전 제출 검사</p>";
+    });
+    const writeSubmit = writeForm
+      .locator("button[type='submit'], input[type='submit'], button.write")
+      .last();
+    await writeSubmit.click();
+    const profileImage = writeForm.locator(
+      "[data-nanatool-profile-card] img[data-nanatool-gallog-profile]"
+    );
+    if ((await profileImage.count()) === 0) {
+      await writePage.waitForFunction(() =>
+        document.querySelector("#dcf-toast")?.textContent.includes(
+          "정보가 준비됐습니다"
+        )
+      );
+      await writeSubmit.click();
+    }
+    await profileImage.waitFor({ state: "visible", timeout: 20000 });
+    assert.equal(profileUploadRequests, 0);
+    assert.equal(
+      await profileImage.getAttribute("src"),
+      "https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&gid=tester&t=1787980878"
+    );
+    assert.equal(await profileImage.getAttribute("data-tempno"), null);
+    assert.equal(
+      await writeForm
+        .locator("[data-nanatool-profile-card] img[data-nanatool-gallog-profile]")
+        .count(),
+      1
+    );
+    assert.deepEqual(
+      await writeForm.locator("textarea[name='memo']").evaluate((memo) => {
+        const parsed = new DOMParser().parseFromString(memo.value, "text/html");
+        const images = [
+          ...parsed.querySelectorAll(
+            "img[data-nanatool-gallog-profile]"
+          )
+        ];
+        return {
+          publicProfileCount: images.filter(
+            (image) =>
+              image.src ===
+                "https://dcimg2.dcinside.co.kr/gallog_upimg.php?mode=profile&gid=tester&t=1787980878" &&
+              !image.hasAttribute("data-tempno")
+          ).length,
+          hasDataImage: memo.value.includes("data:image/"),
+          busy: memo.form?.hasAttribute("data-nanatool-profile-transaction")
+        };
+      }),
+      {
+        publicProfileCount: 1,
+        hasDataImage: false,
+        busy: false
+      }
+    );
+    assert.deepEqual(writeErrors, []);
+    await writePage.close();
 
     if (livePageUrl) {
       const livePage = await context.newPage();

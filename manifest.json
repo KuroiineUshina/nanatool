@@ -43,7 +43,6 @@
         "content.css"
       ],
       "js": [
-        "assets/profile-card-image.js",
         "core.js",
         "content.js"
       ],

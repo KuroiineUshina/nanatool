@@ -81,10 +81,7 @@
   });
   const PROFILE_NUMBER_FORMAT = new Intl.NumberFormat("ko-KR");
   const PROFILE_TEMPLATE_TOKEN_PATTERN =
-    /\{\{(?:닉네임|갤로그ID|갤로그주소|게시글수|댓글수|글댓비|오늘방문자|총방문자|운영갤러리수|캐릭터이미지)\}\}|data-nanatool-(?:profile-card|managed-galleries|managed-gallery-template|character|gallog)/;
-  const PROFILE_IMAGE_TOKEN_PATTERN =
-    /\{\{캐릭터이미지\}\}|data-nanatool-character/;
-  const PROFILE_IMAGE_UPLOAD_TIMEOUT = 12000;
+    /\{\{(?:닉네임|갤로그ID|갤로그주소|갤로그프로필이미지|게시글수|댓글수|글댓비|오늘방문자|총방문자|운영갤러리수|캐릭터이미지)\}\}|data-nanatool-(?:profile-card|managed-galleries|managed-gallery-template|character|gallog(?:-profile)?)/;
   const PROFILE_TEMPLATE_ALLOWED_TAGS = new Set([
     "a",
     "b",
@@ -186,6 +183,7 @@
   let currentState = null;
   let scanQueued = false;
   let subjectFilterSaveSerial = 0;
+  let subjectFilterOpacitySaveSerial = 0;
   let subjectWriteSettingSaveSerial = 0;
   let floatingPosition = { side: "right", y: 1 };
   let floatingBubbleDrag = null;
@@ -198,8 +196,6 @@
   let profileSnapshot = null;
   let profileSnapshotPromise = null;
   let profileSnapshotError = "";
-  let pendingProfileSubmission = null;
-  const profileImageUploads = new WeakMap();
   let profilePopupRefreshTimer = 0;
   const postAffixState = new WeakMap();
   const imageBookmarkControls = new WeakMap();
@@ -655,6 +651,46 @@
     return `1 : ${value}`;
   }
 
+  function gallogProfileImageUrl(documentNode, gallogId) {
+    const safeGallogId = sanitizeGallogId(gallogId);
+    if (!safeGallogId) return "";
+    const images = documentNode.querySelectorAll(
+      "#profile_img, img[src*='gallog_upimg.php'], " +
+        "img[data-original*='gallog_upimg.php'], img[data-src*='gallog_upimg.php']"
+    );
+    for (const image of images) {
+      for (const attribute of ["src", "data-original", "data-src"]) {
+        const source = canonicalizeDcImageUrl(image.getAttribute(attribute));
+        if (!source) continue;
+        try {
+          const url = new URL(source);
+          if (
+            !/\/gallog_upimg\.php$/i.test(url.pathname) ||
+            url.searchParams.get("mode") !== "profile" ||
+            sanitizeGallogId(url.searchParams.get("gid")).toLowerCase() !==
+              safeGallogId.toLowerCase()
+          ) {
+            continue;
+          }
+          if (!url.searchParams.get("t")) {
+            url.searchParams.set("t", String(Date.now()));
+          }
+          return canonicalizeDcImageUrl(url.href);
+        } catch {
+          // 다음 이미지 후보를 확인한다.
+        }
+      }
+    }
+
+    const fallback = new URL(
+      "https://dcimg2.dcinside.co.kr/gallog_upimg.php"
+    );
+    fallback.searchParams.set("mode", "profile");
+    fallback.searchParams.set("gid", safeGallogId);
+    fallback.searchParams.set("t", String(Date.now()));
+    return canonicalizeDcImageUrl(fallback.href);
+  }
+
   function parseGallogProfile(html, gallogId) {
     const documentNode = new DOMParser().parseFromString(html, "text/html");
     const headings = [
@@ -673,6 +709,7 @@
     const profile = {
       gallogId,
       nickname: nickname || gallogId,
+      profileImageUrl: gallogProfileImageUrl(documentNode, gallogId),
       posts: countFor("게시글"),
       comments: countFor("댓글"),
       todayVisitors: parseProfileCount(
@@ -1774,6 +1811,66 @@
     if (toggle) toggle.checked = mode === "exclude";
   }
 
+  function currentSubjectFilterPanelOpacity() {
+    return DCFCore.sanitizeSubjectFilterPanelOpacity(
+      currentState?.settings?.subjectFilterPanelOpacity
+    );
+  }
+
+  function applySubjectFilterPanelOpacity(
+    panel,
+    value = currentSubjectFilterPanelOpacity()
+  ) {
+    if (!panel) return DCFCore.DEFAULT_SUBJECT_FILTER_PANEL_OPACITY;
+    const opacity = DCFCore.sanitizeSubjectFilterPanelOpacity(value);
+    panel.dataset.opacity = String(opacity);
+    panel.style.setProperty(
+      "--dcf-subject-filter-panel-opacity",
+      String(opacity / 100)
+    );
+    const slider = panel.querySelector("#dcf-subject-filter-opacity");
+    if (slider) slider.value = String(opacity);
+    const output = panel.querySelector("[data-dcf-subject-opacity-value]");
+    if (output) {
+      output.value = `${opacity}%`;
+      output.textContent = `${opacity}%`;
+    }
+    return opacity;
+  }
+
+  async function saveSubjectFilterPanelOpacity(panel) {
+    if (!currentState || !panel?.isConnected) return;
+    const slider = panel.querySelector("#dcf-subject-filter-opacity");
+    if (!slider) return;
+    const previous = currentSubjectFilterPanelOpacity();
+    const opacity = applySubjectFilterPanelOpacity(panel, slider.value);
+    const saveSerial = ++subjectFilterOpacitySaveSerial;
+    slider.disabled = true;
+    try {
+      const response = await send({
+        type: "SET_SUBJECT_FILTER_PANEL_OPACITY",
+        opacity
+      });
+      if (
+        saveSerial !== subjectFilterOpacitySaveSerial ||
+        Number(response.revision) < Number(currentState.revision || 0)
+      ) {
+        return;
+      }
+      currentState.revision = response.revision;
+      currentState.settings.subjectFilterPanelOpacity = response.opacity;
+      applySubjectFilterPanelOpacity(panel, response.opacity);
+    } catch (error) {
+      if (saveSerial !== subjectFilterOpacitySaveSerial) return;
+      applySubjectFilterPanelOpacity(panel, previous);
+      showToast(error.message, "error");
+    } finally {
+      if (panel.isConnected && saveSerial === subjectFilterOpacitySaveSerial) {
+        slider.disabled = false;
+      }
+    }
+  }
+
   function setSubjectFilterPanelDisabled(panel, disabled) {
     panel.dataset.saving = disabled ? "true" : "false";
     panel.setAttribute("aria-busy", String(disabled));
@@ -1923,6 +2020,7 @@
       panel.dataset.mode = "exclude";
     }
     syncSubjectFilterModeAppearance(panel);
+    applySubjectFilterPanelOpacity(panel);
 
     const writeSetting = currentSubjectWriteSetting();
     const follow = panel.querySelector("#dcf-subject-write-follow");
@@ -1976,9 +2074,7 @@
     empty.hidden = subjects.length > 0;
     const clear = panel.querySelector(".dcf-subject-filter-clear");
     clear.disabled = selected.size === 0;
-    const status = panel.querySelector("[data-dcf-subject-status]");
     const saving = panel.dataset.saving === "true";
-    if (status && !saving) status.textContent = "체크하면 바로 적용";
     setSubjectFilterPanelDisabled(panel, saving);
   }
 
@@ -2078,9 +2174,30 @@
     empty.textContent = "현재 목록에서 말머리를 찾지 못했습니다.";
     const footer = document.createElement("div");
     footer.className = "dcf-subject-filter-footer";
-    const status = document.createElement("span");
-    status.dataset.dcfSubjectStatus = "true";
-    status.textContent = "체크하면 바로 적용";
+    const opacityLabel = document.createElement("label");
+    opacityLabel.className = "dcf-subject-filter-opacity";
+    const opacityText = document.createElement("span");
+    opacityText.textContent = "불투명도";
+    const opacitySlider = document.createElement("input");
+    opacitySlider.id = "dcf-subject-filter-opacity";
+    opacitySlider.type = "range";
+    opacitySlider.min = String(DCFCore.MIN_SUBJECT_FILTER_PANEL_OPACITY);
+    opacitySlider.max = String(DCFCore.MAX_SUBJECT_FILTER_PANEL_OPACITY);
+    opacitySlider.step = String(DCFCore.SUBJECT_FILTER_PANEL_OPACITY_STEP);
+    opacitySlider.value = String(DCFCore.DEFAULT_SUBJECT_FILTER_PANEL_OPACITY);
+    opacitySlider.setAttribute("aria-label", "말머리 필터 불투명도");
+    const opacityValue = document.createElement("output");
+    opacityValue.htmlFor = opacitySlider.id;
+    opacityValue.dataset.dcfSubjectOpacityValue = "true";
+    opacityValue.value = `${DCFCore.DEFAULT_SUBJECT_FILTER_PANEL_OPACITY}%`;
+    opacityValue.textContent = `${DCFCore.DEFAULT_SUBJECT_FILTER_PANEL_OPACITY}%`;
+    opacitySlider.addEventListener("input", () => {
+      applySubjectFilterPanelOpacity(panel, opacitySlider.value);
+    });
+    opacitySlider.addEventListener("change", () => {
+      void saveSubjectFilterPanelOpacity(panel);
+    });
+    opacityLabel.append(opacityText, opacitySlider, opacityValue);
     const clear = document.createElement("button");
     clear.type = "button";
     clear.className = "dcf-subject-filter-clear";
@@ -2093,7 +2210,7 @@
         .forEach((checkbox) => (checkbox.checked = false));
       saveSubjectFilterPanel(panel);
     });
-    footer.append(status, clear);
+    footer.append(opacityLabel, clear);
     panel.append(heading, modeRow, writeSettings, list, empty, footer);
     (document.body || document.documentElement).append(panel);
     return panel;
@@ -3165,212 +3282,7 @@
     return PROFILE_TEMPLATE_TOKEN_PATTERN.test(String(value || ""));
   }
 
-  function footerNeedsProfileImage(value) {
-    return PROFILE_IMAGE_TOKEN_PATTERN.test(String(value || ""));
-  }
 
-  function profileImageFile() {
-    const source = String(global.DCFProfileCardImage || "");
-    const match = source.match(/^data:(image\/(?:png|jpe?g|webp));base64,(.+)$/i);
-    if (!match) throw new Error("내장 캐릭터 이미지가 올바르지 않습니다.");
-    const binary = global.atob(match[2]);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
-    }
-    const extension = /png/i.test(match[1])
-      ? "png"
-      : /jpe?g/i.test(match[1])
-        ? "jpg"
-        : "webp";
-    return new File(
-      [bytes],
-      `nanatool_profile_${Date.now()}.${extension}`,
-      { type: match[1] }
-    );
-  }
-
-  function officialUploadedImageUrl(image) {
-    const source = image?.getAttribute?.("src") || image?.src || "";
-    if (!source) return "";
-    try {
-      const resolved = new URL(source, location.href);
-      if (
-        resolved.protocol !== "https:" ||
-        !/(?:^|\.)dcinside\.(?:com|co\.kr)$/i.test(resolved.hostname)
-      ) {
-        return "";
-      }
-      return resolved.href;
-    } catch {
-      return "";
-    }
-  }
-
-  function isOfficialUploadedImage(image) {
-    return Boolean(
-      image?.matches?.("img[data-tempno]") && officialUploadedImageUrl(image)
-    );
-  }
-
-  function waitForOfficialProfileImage(editor, existingImages) {
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      const finish = (image, error) => {
-        if (settled) return;
-        settled = true;
-        observer.disconnect();
-        global.clearTimeout(timeoutId);
-        if (error) reject(error);
-        else resolve(image);
-      };
-      const scan = () => {
-        const image = [...editor.querySelectorAll("img[data-tempno]")].find(
-          (candidate) =>
-            !existingImages.has(candidate) && isOfficialUploadedImage(candidate)
-        );
-        if (image) finish(image, null);
-      };
-      const observer = new MutationObserver(scan);
-      observer.observe(editor, {
-        attributes: true,
-        attributeFilter: ["data-tempno", "src"],
-        childList: true,
-        subtree: true
-      });
-      const timeoutId = global.setTimeout(
-        () =>
-          finish(
-            null,
-            new Error("디시 이미지 업로드 응답을 기다리다 시간이 초과됐습니다.")
-          ),
-        PROFILE_IMAGE_UPLOAD_TIMEOUT
-      );
-      scan();
-    });
-  }
-
-  function dispatchOfficialProfileImageUpload(editor, file) {
-    if (typeof DataTransfer !== "function" || typeof ClipboardEvent !== "function") {
-      throw new Error("이 브라우저에서는 디시 이미지 업로드를 시작할 수 없습니다.");
-    }
-    const transfer = new DataTransfer();
-    transfer.items.add(file);
-    const event = new ClipboardEvent("paste", {
-      bubbles: true,
-      cancelable: true,
-      clipboardData: transfer
-    });
-    editor.dispatchEvent(event);
-  }
-
-  function mountOfficialProfileImage(form, upload, uploadedImage = null) {
-    const editor = form?.querySelector?.(
-      ".note-editable[contenteditable='true']"
-    );
-    if (!editor || !upload?.url || !upload?.tempNo) return false;
-    const placeholder = editor.querySelector(
-      "[data-nanatool-affix='post-footer'] img[data-nanatool-character], " +
-        "[data-nanatool-profile-card] img[data-nanatool-character]"
-    );
-    if (!placeholder) return false;
-
-    if (
-      placeholder.getAttribute("src") === upload.url &&
-      placeholder.getAttribute("data-tempno") === upload.tempNo
-    ) {
-      return true;
-    }
-
-    const previousContainer = uploadedImage?.parentElement || null;
-    const image = uploadedImage || placeholder;
-    if (image !== placeholder) {
-      const style = placeholder.getAttribute("style") || "";
-      const alt = placeholder.getAttribute("alt") || "나나툴 캐릭터";
-      const width = placeholder.getAttribute("width");
-      const height = placeholder.getAttribute("height");
-      placeholder.replaceWith(image);
-      if (style) image.setAttribute("style", style);
-      image.setAttribute("alt", alt);
-      if (width) image.setAttribute("width", width);
-      if (height) image.setAttribute("height", height);
-    }
-    image.dataset.nanatoolCharacter = "";
-    image.setAttribute("src", upload.url);
-    image.setAttribute("data-tempno", upload.tempNo);
-
-    if (
-      previousContainer &&
-      previousContainer !== editor &&
-      previousContainer.isConnected &&
-      !previousContainer.querySelector("img") &&
-      !boundaryValue(previousContainer.textContent)
-    ) {
-      previousContainer.remove();
-    }
-    return true;
-  }
-
-  async function ensureProfileImageUpload(form) {
-    const editor = form?.querySelector?.(
-      ".note-editable[contenteditable='true']"
-    );
-    if (!editor) throw new Error("디시 글쓰기 편집기를 찾지 못했습니다.");
-    const rKey = boundaryValue(form.querySelector("#r_key, [name='r_key']")?.value);
-    const existing = profileImageUploads.get(form);
-    if (
-      existing?.rKey === rKey &&
-      existing.status === "ready"
-    ) {
-      if (!mountOfficialProfileImage(form, existing)) {
-        throw new Error("활동 명함의 프로필 이미지 자리를 찾지 못했습니다.");
-      }
-      return existing;
-    }
-    if (
-      existing?.rKey === rKey &&
-      existing.status === "uploading"
-    ) {
-      return existing.promise;
-    }
-
-    const state = {
-      rKey,
-      status: "uploading",
-      url: "",
-      tempNo: "",
-      promise: null
-    };
-    profileImageUploads.set(form, state);
-    state.promise = (async () => {
-      const knownImages = new Set(editor.querySelectorAll("img"));
-      const waiting = waitForOfficialProfileImage(editor, knownImages);
-      dispatchOfficialProfileImageUpload(editor, profileImageFile());
-      const uploadedImage = await waiting;
-      state.url = officialUploadedImageUrl(uploadedImage);
-      state.tempNo = uploadedImage.getAttribute("data-tempno") || "";
-      if (!state.url || !state.tempNo) {
-        throw new Error("디시 이미지 업로드 결과가 올바르지 않습니다.");
-      }
-      if (!mountOfficialProfileImage(form, state, uploadedImage)) {
-        throw new Error("활동 명함의 프로필 이미지 자리를 찾지 못했습니다.");
-      }
-      state.status = "ready";
-      const memo = form.querySelector(
-        "textarea#memo[name='memo'], textarea[name='memo']"
-      );
-      if (memo) {
-        memo.value = editor.innerHTML;
-        dispatchValueEvents(memo);
-      }
-      dispatchValueEvents(editor);
-      return state;
-    })().catch((error) => {
-      state.status = "error";
-      throw error;
-    });
-    return state.promise;
-  }
 
   function sanitizeProfileTemplateStyle(value) {
     const source = String(value || "")
@@ -3469,6 +3381,7 @@
           "data-nanatool-managed-gallery-role",
           "data-nanatool-managed-gallery-name",
           "data-nanatool-character",
+          "data-nanatool-gallog-profile",
           "data-nanatool-gallog"
         ].includes(name);
         if (name === "style") {
@@ -3482,6 +3395,7 @@
         } else if (name === "src" && tagName === "img") {
           if (
             value !== "{{캐릭터이미지}}" &&
+            value !== "{{갤로그프로필이미지}}" &&
             !/^(?:https:)?\/\/(?:[a-z0-9-]+\.)*dcinside\.(?:com|co\.kr)\//i.test(
               value
             )
@@ -3555,8 +3469,24 @@
       node.nodeValue = next;
     }
 
+    const currentProfileImage = canonicalizeDcImageUrl(
+      profile.profileImageUrl
+    );
     for (const image of root.querySelectorAll?.("img[src]") || []) {
       const source = image.getAttribute("src") || "";
+      const usesCurrentProfile =
+        image.hasAttribute("data-nanatool-gallog-profile") ||
+        source.includes("{{갤로그프로필이미지}}") ||
+        (source.includes("{{갤로그ID}}") &&
+          /gallog_upimg\.php[^#]*[?&](?:amp;)?mode=profile(?:&|$)/i.test(
+            source
+          ));
+      if (usesCurrentProfile) {
+        image.dataset.nanatoolGallogProfile = "";
+        if (currentProfileImage) image.setAttribute("src", currentProfileImage);
+        else image.removeAttribute("src");
+        continue;
+      }
       if (!source.includes("{{갤로그ID}}")) continue;
       const resolvedSource = canonicalizeDcImageUrl(
         source.replaceAll(
@@ -3702,7 +3632,34 @@
     return forms.length === 1 ? forms[0] : null;
   }
 
-  function applyPostAffixes(form = findPostWriteForm()) {
+  function cleanPostAnimatedImages(form = findPostWriteForm(), includeCodeView = false) {
+    const editor = form?.querySelector(".note-editable[contenteditable='true']");
+    if (!editor) return 0;
+    const codeView = editor.closest(".note-editor.codeview");
+    const code = codeView?.querySelector("textarea.note-codable");
+    // HTML 편집 중인 초안은 제출 직전에만 처리한다.
+    if (codeView && (!includeCodeView || !code)) return 0;
+
+    const template = code ? document.createElement("template") : null;
+    if (template) template.innerHTML = code.value;
+    const root = template ? template.content : editor;
+    const images = root.querySelectorAll("img.webp-mp4, img.gif-mp4");
+    if (!images.length) return 0;
+    for (const image of images) {
+      image.classList.remove("webp-mp4", "gif-mp4");
+      if (!image.getAttribute("class")?.trim()) image.removeAttribute("class");
+    }
+    const html = template ? template.innerHTML : editor.innerHTML;
+    if (code) code.value = html;
+    const memo = form.querySelector("textarea#memo[name='memo'], textarea[name='memo']");
+    if (memo) memo.value = html;
+    return images.length;
+  }
+
+  function applyPostAffixes(
+    form = findPostWriteForm(),
+    profileOverride = profileSnapshot
+  ) {
     const affix = currentGalleryAffix();
     if (!form || !affix) return false;
     const header = boundaryValue(affix.postHeader);
@@ -3736,11 +3693,11 @@
       footerColor,
       footerCss,
       profileTemplate,
-      profileTemplate && profileSnapshot
+      profileTemplate && profileOverride
         ? [
-            profileSnapshot.savedAt,
-            profileSnapshot.profile,
-            profileSnapshot.galleries
+            profileOverride.savedAt,
+            profileOverride.profile,
+            profileOverride.galleries
           ]
         : null
     ]);
@@ -3775,7 +3732,7 @@
         footer,
         footerColor,
         footerCss,
-        profileSnapshot
+        profileOverride
       );
       editor.append(suffix.node);
       inserted.push(suffix);
@@ -3783,10 +3740,6 @@
 
     if (inserted.length || !previous) {
       postAffixState.set(editor, { hash, nodes: inserted });
-    }
-    const uploadedProfileImage = profileImageUploads.get(form);
-    if (uploadedProfileImage?.status === "ready") {
-      applyProfileImageState(form, uploadedProfileImage);
     }
     memo.value = editor.innerHTML;
     dispatchValueEvents(editor);
@@ -3852,109 +3805,26 @@
     return Boolean(findCommentTextarea(control));
   }
 
-  function findReplaySubmitControl(form, preferred) {
-    const preferredControl = preferred?.closest?.(
-      "button, input[type='button'], input[type='submit']"
-    );
-    if (
-      preferredControl &&
-      form?.contains(preferredControl) &&
-      isPostSubmitControl(preferredControl)
-    ) {
-      return preferredControl;
-    }
-    return [...(form?.querySelectorAll?.(
-      "button, input[type='button'], input[type='submit']"
-    ) || [])].find((control) => isPostSubmitControl(control)) || null;
-  }
 
-  function replayPostSubmission(request) {
-    const form = request?.form;
-    if (!form?.isConnected) {
-      showToast("글쓰기 화면이 바뀌어 등록을 이어가지 못했습니다.", "error");
-      return;
-    }
-    const control = findReplaySubmitControl(form, request.control);
-    if (control && !control.disabled) {
-      control.click();
-      return;
-    }
-    if (typeof form.requestSubmit === "function") {
-      form.requestSubmit();
-      return;
-    }
-    showToast("등록 버튼을 찾지 못했습니다. 다시 눌러 주세요.", "error");
-  }
-
-  function profileImageIsReady(form) {
-    const state = profileImageUploads.get(form);
-    const rKey = boundaryValue(form?.querySelector?.("#r_key, [name='r_key']")?.value);
-    return Boolean(
-      state?.status === "ready" &&
-        state.rKey === rKey
-    );
-  }
-
-  async function prepareProfileCardSubmission(form) {
+  function profileCardReadyForSubmission(event, form) {
     const footer = currentGalleryAffix()?.postFooter;
-    const snapshot = profileSnapshot || (await ensureProfileSnapshot());
-    if (!snapshot) {
-      throw new Error(
-        profileSnapshotError || "활동 정보를 불러오지 못했습니다."
-      );
-    }
-    if (!applyPostAffixes(form)) {
-      throw new Error("활동 명함을 글쓰기 편집기에 넣지 못했습니다.");
-    }
-    if (footerNeedsProfileImage(footer)) {
-      await ensureProfileImageUpload(form);
-    }
-    return true;
-  }
+    if (!footerNeedsProfileSnapshot(footer)) return true;
+    if (profileSnapshot) return true;
 
-  function queuePostSubmissionUntilProfileReady(event, form, control) {
     event.preventDefault();
     event.stopImmediatePropagation();
-    if (pendingProfileSubmission) {
-      showToast("활동 명함 준비 중입니다. 완료되면 자동으로 등록합니다.");
-      return false;
-    }
-
-    const request = { form, control };
-    pendingProfileSubmission = request;
-    showToast("활동 명함 준비 중입니다. 완료되면 자동으로 등록합니다.");
-    void prepareProfileCardSubmission(form)
-      .then(() => {
-        if (pendingProfileSubmission !== request) return;
-        pendingProfileSubmission = null;
-        showToast("활동 명함 준비 완료. 등록을 이어갑니다.");
-        global.setTimeout(() => replayPostSubmission(request), 0);
-      })
-      .catch((error) => {
-        if (pendingProfileSubmission !== request) return;
-        pendingProfileSubmission = null;
-        showToast(
-          `활동 명함을 만들지 못했습니다: ${
-            error?.message || "준비 중 오류가 발생했습니다."
-          }`,
-          "error"
-        );
-      });
+    showToast(
+      profileSnapshotError
+        ? `활동 정보를 불러오지 못했습니다: ${profileSnapshotError}`
+        : "활동 명함 정보를 불러오는 중입니다. 준비된 뒤 등록 버튼을 다시 눌러 주세요.",
+      profileSnapshotError ? "error" : "normal"
+    );
+    void ensureProfileSnapshot().then((snapshot) => {
+      if (snapshot) {
+        showToast("활동 명함 정보가 준비됐습니다. 등록 버튼을 다시 눌러 주세요.");
+      }
+    });
     return false;
-  }
-
-  function profileCardReadyForSubmission(event, form, control) {
-    const footer = currentGalleryAffix()?.postFooter;
-    if (!footerNeedsProfileSnapshot(footer)) {
-      return true;
-    }
-    if (
-      profileSnapshot &&
-      (!footerNeedsProfileImage(footer) || profileImageIsReady(form))
-    ) {
-      return true;
-    }
-    return queuePostSubmissionUntilProfileReady(event, form, control);
   }
 
   function handleEarlySubmission(event) {
@@ -3964,6 +3834,7 @@
       if (form?.matches?.("form[name='write'][action*='article_submit']")) {
         if (!profileCardReadyForSubmission(event, form, event.submitter)) return;
         applyPostAffixes(form);
+        cleanPostAnimatedImages(form, true);
       } else if (form?.closest?.(COMMENT_REGION_SELECTOR)) {
         applyCommentFooter(form);
       }
@@ -3974,6 +3845,7 @@
       const form = findPostWriteForm(target);
       if (!profileCardReadyForSubmission(event, form, target)) return;
       applyPostAffixes(form);
+      cleanPostAnimatedImages(form, true);
     } else if (isCommentSubmitControl(target)) {
       applyCommentFooter(target);
     }
@@ -3987,11 +3859,11 @@
     ) {
       return;
     }
-    if (event.target?.closest?.(".note-editable[contenteditable='true']")) {
+    if (event.target?.closest?.(".note-editable[contenteditable='true'], .note-codable")) {
       const form = findPostWriteForm(event.target);
-      const control = findReplaySubmitControl(form, null);
-      if (!profileCardReadyForSubmission(event, form, control)) return;
+      if (!profileCardReadyForSubmission(event, form)) return;
       applyPostAffixes(form);
+      cleanPostAnimatedImages(form, true);
     } else if (findCommentTextarea(event.target)) {
       applyCommentFooter(event.target);
     }
@@ -4013,6 +3885,7 @@
     applySubjectFilter(root);
     injectSubjectFilterControl();
     if (isNewPostWritePage()) applyWriteSubjectSetting();
+    cleanPostAnimatedImages();
     injectBookmarkButton();
     enhanceView();
     if (
@@ -4084,12 +3957,10 @@
     mergeManagedGalleries,
     loadProfileSnapshot,
     footerNeedsProfileSnapshot,
-    footerNeedsProfileImage,
     sanitizeProfileTemplateStyle,
     sanitizeFooterTemplate,
     makePostFooterBlock,
-    ensureProfileImageUpload,
-    mountOfficialProfileImage,
+    profileCardReadyForSubmission,
     collectPostRows,
     extractPostSubject,
     subjectNamesFromRows,
