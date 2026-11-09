@@ -18,6 +18,7 @@ README.md
 PRIVACY.md
 privacy.html
 THIRD_PARTY_NOTICES.md
+nana-profile-footer-template.txt
 assets/bootstrap-eye.svg
 assets/bootstrap-eye-slash.svg
 assets/pretendard-local.css

@@ -70,6 +70,35 @@
     return global.caches?.delete?.(CACHE_NAME) || false;
   }
 
+  function idFromCacheUrl(value) {
+    const prefix = `${CACHE_ORIGIN}/image-bookmarks/`;
+    const url = String(value || "");
+    if (!url.startsWith(prefix)) return null;
+    try {
+      return normalizeId(decodeURIComponent(url.slice(prefix.length)));
+    } catch {
+      return "";
+    }
+  }
+
+  // 어떤 이미지 북마크도 가리키지 않는 캐시 파일을 지운다. 저장 중인 파일을
+  // 지우지 않도록 호출하는 쪽에서 상태 변경 큐 안에서 실행해야 한다.
+  async function removeUnreferenced(referencedIds) {
+    const referenced = new Set(
+      Array.from(referencedIds || [], (id) => normalizeId(id)).filter(Boolean)
+    );
+    const cache = await openCache();
+    if (typeof cache.keys !== "function") return 0;
+    let removed = 0;
+    for (const request of await cache.keys()) {
+      const id = idFromCacheUrl(request?.url ?? request);
+      // 나나툴 이미지 경로가 아닌 항목은 건드리지 않는다.
+      if (id === null || (id && referenced.has(id))) continue;
+      if (await cache.delete(request)) removed += 1;
+    }
+    return removed;
+  }
+
   global.DCFImageStore = Object.freeze({
     CACHE_NAME,
     MAX_IMAGE_BYTES,
@@ -79,6 +108,7 @@
     get,
     has,
     remove,
-    clear
+    clear,
+    removeUnreferenced
   });
 })(globalThis);

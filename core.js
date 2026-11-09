@@ -309,6 +309,23 @@
     );
   }
 
+  // manifest host_permissions와 이미지 Referer 규칙으로 서비스 워커가 실제로
+  // 내려받을 수 있는 이미지 호스트만 허용한다.
+  const FETCHABLE_DC_IMAGE_HOSTS = Object.freeze([
+    "gall.dcinside.com",
+    "gallog.dcinside.com",
+    "m.dcinside.com"
+  ]);
+
+  function isFetchableDcImageHost(hostname) {
+    const host = normalizeCase(hostname).replace(/\.$/, "");
+    return (
+      host === "dcinside.co.kr" ||
+      host.endsWith(".dcinside.co.kr") ||
+      FETCHABLE_DC_IMAGE_HOSTS.includes(host)
+    );
+  }
+
   function isDcUrl(value) {
     try {
       const resolved = new URL(value);
@@ -370,7 +387,7 @@
     return "";
   }
 
-  function canonicalizeDcImageUrl(value) {
+  function canonicalizeImageUrlForHosts(value, allowHost) {
     const source = String(value || "").trim().replaceAll("&amp;", "&");
     if (!source || /^(?:data|blob|javascript):/i.test(source)) return "";
     try {
@@ -380,7 +397,7 @@
         resolved.username ||
         resolved.password ||
         (resolved.port && resolved.port !== "443") ||
-        !isDcAssetHost(resolved.hostname)
+        !allowHost(resolved.hostname)
       ) {
         return "";
       }
@@ -389,6 +406,17 @@
     } catch {
       return "";
     }
+  }
+
+  // 새 이미지 북마크 저장·버튼 표시용: 확장프로그램이 내려받을 수 있는 호스트만.
+  function canonicalizeDcImageUrl(value) {
+    return canonicalizeImageUrlForHosts(value, isFetchableDcImageHost);
+  }
+
+  // 이미 저장된 이미지 북마크 정규화용: 예전 버전에서 저장한 다른 디시 호스트
+  // 기록도 지우지 않고 보존한다.
+  function canonicalizeStoredDcImageUrl(value) {
+    return canonicalizeImageUrlForHosts(value, isDcAssetHost);
   }
 
   function defaultState() {
@@ -494,7 +522,7 @@
   }
 
   function normalizeImageBookmark(bookmark, folders) {
-    const sourceUrl = canonicalizeDcImageUrl(bookmark?.sourceUrl);
+    const sourceUrl = canonicalizeStoredDcImageUrl(bookmark?.sourceUrl);
     if (!bookmark?.id || !sourceUrl) return null;
     const timestamp = nowIso();
     const folderId = folders.some((folder) => folder.id === bookmark.folderId)
@@ -890,9 +918,11 @@
     sanitizeAffixCss,
     isDcHost,
     isDcAssetHost,
+    isFetchableDcImageHost,
     isDcUrl,
     canonicalizeDcUrl,
     canonicalizeDcImageUrl,
+    canonicalizeStoredDcImageUrl,
     defaultState,
     normalizeGalleryAffix,
     normalizeSubjectFilter,

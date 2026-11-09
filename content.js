@@ -66,8 +66,29 @@
     "펼치기",
     "설정"
   ]);
-  const COMMENT_SUBMIT_LABELS = new Set(["등록", "댓글등록", "작성"]);
+  // 공백을 지운 라벨로 비교한다("등록 + 추천"도 "등록+추천"으로 본다).
+  const COMMENT_SUBMIT_LABELS = new Set(["등록", "댓글등록", "작성", "등록+추천"]);
   const POST_SUBMIT_LABELS = new Set(["등록", "수정", "작성", "글쓰기"]);
+  const POST_FORM_SELECTOR = "form[name='write'][action*='article_submit']";
+  // 글쓰기 폼 안에 있어도 첨부·투표 같은 보조 창의 버튼은 글 등록 버튼이 아니다.
+  const POST_SUBMIT_EXCLUDED_CONTAINER_SELECTOR = [
+    "[role='dialog']",
+    ".note-modal",
+    ".modal",
+    "[class*='popup']",
+    "[class*='pop_']",
+    "[class*='_pop']",
+    "[class*='layer']",
+    "[class*='vote']",
+    "[class*='poll']",
+    "[id*='popup']",
+    "[id*='pop_']",
+    "[id*='_pop']",
+    "[id*='layer']",
+    "[id*='vote']",
+    "[id*='poll']"
+  ].join(", ");
+  const POST_ACTION_BOX_SELECTOR = ".view_bottom_btnbox, .gallview_bottom";
   const FLOATING_EDGE_GAP = 16;
   const FLOATING_RIGHT_GAP = 24;
   const FLOATING_PANEL_GAP = 12;
@@ -75,6 +96,9 @@
   const FLOATING_DRAG_THRESHOLD = 5;
   const CURRENT_SUBJECT_SESSION_PREFIX = "nanatool-current-subject:";
   const PROFILE_SNAPSHOT_TTL = 5 * 60 * 1000;
+  const PROFILE_RETRY_INTERVAL = 30 * 1000;
+  const PROFILE_ROLE_VERIFY_TIMEOUT = 15 * 1000;
+  const PROFILE_FAILURE_TOAST_DURATION = 7000;
   const PROFILE_ROLE_BADGES = Object.freeze({
     manager: "https://nstatic.dcinside.com/dc/w/images/managernik.gif",
     submanager: "https://nstatic.dcinside.com/dc/w/images/sub_managernik.gif"
@@ -195,12 +219,25 @@
   let floatingBubbleImageDataUrl = "";
   let profileSnapshot = null;
   let profileSnapshotPromise = null;
+  // 마지막 실패 문구는 다음 성공 때까지 남겨 사용자가 볼 수 있게 한다.
   let profileSnapshotError = "";
+  let profileSnapshotFailedAt = 0;
+  let profileSnapshotFailureNotified = false;
+  let profileSnapshotAutoLoadStarted = false;
+  let profileSnapshotExpiryTimer = 0;
+  let profileSnapshotLoadSerial = 0;
+  let profileSnapshotStoreSerial = 0;
+  let profileSnapshotPopupVerifiedLoadId = 0;
+  let profileSubmitNoticePromise = null;
   let profilePopupRefreshTimer = 0;
+  let scanCache = null;
   const postAffixState = new WeakMap();
   const imageBookmarkControls = new WeakMap();
   const floatingBubbleImages = new WeakMap();
   let imageBookmarkSyncTimer = 0;
+  let imageBookmarkSyncKey = "";
+  let imageBookmarkPendingKey = "";
+  let imageBookmarkSavedUrls = null;
 
   function isOwnedNode(node) {
     const element =
@@ -354,25 +391,76 @@
     }
   }
 
+  const TIMEOUT_ERROR_MESSAGE =
+    "응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.";
+  const ENGLISH_ERROR_MESSAGES = Object.freeze([
+    [
+      /extension context invalidated/i,
+      "나나툴이 업데이트되었거나 다시 로드되었습니다. 페이지를 새로고침해 주세요."
+    ],
+    [
+      /could not establish connection|receiving end does not exist|message (?:port|channel) (?:is )?closed/i,
+      "나나툴 백그라운드와 연결하지 못했습니다. 페이지를 새로고침해 주세요."
+    ],
+    [/signal is aborted|aborterror|aborted|timed? ?out/i, TIMEOUT_ERROR_MESSAGE],
+    [
+      /failed to fetch|networkerror|network error|load failed/i,
+      "네트워크 연결을 확인해 주세요."
+    ]
+  ]);
+
+  function koreanErrorMessage(error, fallback = "요청을 처리하지 못했습니다.") {
+    const message = normalizeText(
+      typeof error === "string" ? error : error?.message
+    );
+    // 한글 안내는 그대로 쓰고, 브라우저가 만든 영어 오류만 한국어로 바꾼다.
+    if (/[ㄱ-ㆎ가-힣]/.test(message)) return message;
+    if (error?.name === "AbortError") return TIMEOUT_ERROR_MESSAGE;
+    for (const [pattern, text] of ENGLISH_ERROR_MESSAGES) {
+      if (pattern.test(message)) return text;
+    }
+    return fallback;
+  }
+
   function send(message) {
     return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        if (!response?.ok) {
-          reject(
-            new Error(response?.error || "확장프로그램 요청에 실패했습니다.")
-          );
-          return;
-        }
-        resolve(response);
-      });
+      try {
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(
+              new Error(
+                koreanErrorMessage(
+                  chrome.runtime.lastError.message,
+                  "나나툴 백그라운드와 연결하지 못했습니다. 페이지를 새로고침해 주세요."
+                )
+              )
+            );
+            return;
+          }
+          if (!response?.ok) {
+            reject(
+              new Error(
+                koreanErrorMessage(
+                  response?.error,
+                  "확장프로그램 요청에 실패했습니다."
+                )
+              )
+            );
+            return;
+          }
+          resolve(response);
+        });
+      } catch (error) {
+        reject(
+          new Error(
+            koreanErrorMessage(error, "확장프로그램 요청에 실패했습니다.")
+          )
+        );
+      }
     });
   }
 
-  function showToast(message, tone = "normal") {
+  function showToast(message, tone = "normal", duration = 2600) {
     let toast = document.getElementById("dcf-toast");
     if (!toast) {
       toast = document.createElement("div");
@@ -387,7 +475,7 @@
     global.clearTimeout(showToast.timer);
     showToast.timer = global.setTimeout(() => {
       toast.classList.remove("is-visible");
-    }, 2600);
+    }, duration);
   }
 
   function canonicalHref() {
@@ -1041,6 +1129,8 @@
     });
   }
 
+  // 역할을 확인한 새 스냅숏을 돌려준다. 실패·시간 초과면 받은 스냅숏을 그대로
+  // 돌려주고, 역할이 비어 있는 갤러리는 명함에 싣지 않는다.
   async function verifyProfileSnapshotRoles(snapshot) {
     const gallogId = sanitizeGallogId(snapshot?.profile?.gallogId);
     const unresolved = (snapshot?.galleries || []).filter(
@@ -1048,13 +1138,20 @@
     );
     if (!gallogId || !unresolved.length) return snapshot;
 
+    let timeoutId = 0;
     try {
-      const response = await send({
-        type: "GET_PROFILE_ROLE_PAGES",
-        galleries: unresolved
-      });
-      if (profileSnapshot !== snapshot) return profileSnapshot;
-
+      const response = await Promise.race([
+        send({
+          type: "GET_PROFILE_ROLE_PAGES",
+          galleries: unresolved
+        }),
+        new Promise((resolve, reject) => {
+          timeoutId = global.setTimeout(
+            () => reject(new Error("운영 갤러리 확인 시간이 초과되었습니다.")),
+            PROFILE_ROLE_VERIFY_TIMEOUT
+          );
+        })
+      ]);
       const roleByKey = new Map(
         (response.pages || []).map((page) => [
           page.galleryKey,
@@ -1067,10 +1164,11 @@
           role: roleByKey.get(gallery.galleryKey) || gallery.role
         }))
       );
-      profileSnapshot = { ...snapshot, galleries };
-      return profileSnapshot;
+      return { ...snapshot, galleries };
     } catch {
       return snapshot;
+    } finally {
+      global.clearTimeout(timeoutId);
     }
   }
 
@@ -1104,50 +1202,144 @@
     return { profile, galleries, savedAt: Date.now() };
   }
 
-  function ensureProfileSnapshot({ force = false } = {}) {
-    if (
-      !force &&
-      profileSnapshot &&
-      Date.now() - profileSnapshot.savedAt < PROFILE_SNAPSHOT_TTL
-    ) {
-      return Promise.resolve(profileSnapshot);
+  function clearProfileSnapshotExpiry() {
+    global.clearTimeout(profileSnapshotExpiryTimer);
+    profileSnapshotExpiryTimer = 0;
+  }
+
+  function expireProfileSnapshot() {
+    clearProfileSnapshotExpiry();
+    profileSnapshot = null;
+  }
+
+  // 활동 정보는 savedAt부터 최대 5분만 들고 있다가 지운다.
+  function storeProfileSnapshot(snapshot) {
+    clearProfileSnapshotExpiry();
+    if (!snapshot) {
+      profileSnapshot = null;
+      return null;
     }
+    const stored = snapshot.loadId
+      ? snapshot
+      : { ...snapshot, loadId: ++profileSnapshotStoreSerial };
+    profileSnapshot = stored;
+    const remaining =
+      Number(stored.savedAt) + PROFILE_SNAPSHOT_TTL - Date.now();
+    profileSnapshotExpiryTimer = global.setTimeout(() => {
+      profileSnapshotExpiryTimer = 0;
+      if (profileSnapshot?.loadId === stored.loadId) profileSnapshot = null;
+    }, Number.isFinite(remaining) ? Math.max(0, remaining) : 0);
+    return stored;
+  }
+
+  function freshProfileSnapshot() {
+    if (!profileSnapshot) return null;
+    const age = Date.now() - Number(profileSnapshot.savedAt);
+    if (!Number.isFinite(age) || age >= PROFILE_SNAPSHOT_TTL) {
+      expireProfileSnapshot();
+      return null;
+    }
+    return profileSnapshot;
+  }
+
+  // 화면 변화로는 부르지 않는다. 글쓰기 화면 첫 감지 때 한 번, 그 뒤로는
+  // 사용자가 등록을 누를 때만 부른다.
+  function ensureProfileSnapshot() {
+    const fresh = freshProfileSnapshot();
+    if (fresh) return Promise.resolve(fresh);
     if (profileSnapshotPromise) return profileSnapshotPromise;
-    profileSnapshotError = "";
-    profileSnapshotPromise = loadProfileSnapshot()
+    const loadSerial = ++profileSnapshotLoadSerial;
+    const promise = loadProfileSnapshot()
+      // 역할 확인이 끝나거나 시간이 다 될 때까지 명함 준비로 치지 않는다.
+      .then((snapshot) => verifyProfileSnapshotRoles(snapshot))
       .then((snapshot) => {
-        profileSnapshot = snapshot;
-        void verifyProfileSnapshotRoles(snapshot);
-        return snapshot;
+        if (loadSerial !== profileSnapshotLoadSerial) return freshProfileSnapshot();
+        profileSnapshotError = "";
+        profileSnapshotFailedAt = 0;
+        profileSnapshotFailureNotified = false;
+        return storeProfileSnapshot({ ...snapshot, loadId: 0 });
       })
       .catch((error) => {
-        profileSnapshotError = error?.message || "활동 정보를 불러오지 못했습니다.";
+        if (loadSerial !== profileSnapshotLoadSerial) return null;
+        profileSnapshotError = koreanErrorMessage(
+          error,
+          "활동 정보를 불러오지 못했습니다."
+        );
+        profileSnapshotFailedAt = Date.now();
+        profileSnapshotFailureNotified = false;
         return null;
       })
       .finally(() => {
-        profileSnapshotPromise = null;
+        if (profileSnapshotPromise === promise) profileSnapshotPromise = null;
       });
-    return profileSnapshotPromise;
+    profileSnapshotPromise = promise;
+    return promise;
+  }
+
+  function maybeAutoLoadProfileSnapshot() {
+    if (profileSnapshotAutoLoadStarted) return false;
+    if (!findPostWriteForm()) return false;
+    if (!footerNeedsProfileSnapshot(currentGalleryAffix()?.postFooter)) {
+      return false;
+    }
+    profileSnapshotAutoLoadStarted = true;
+    void ensureProfileSnapshot();
+    return true;
+  }
+
+  function managedGallerySignature(galleries) {
+    return JSON.stringify(
+      (galleries || []).map((gallery) => [
+        gallery.galleryKey,
+        gallery.role,
+        gallery.galleryName
+      ])
+    );
+  }
+
+  // 이미 받아 둔 활동 정보에 운영 목록 팝업에서 보이는 갤러리만 합친다.
+  // 새 요청은 하지 않고, 역할 확인은 스냅숏 하나당 한 번만 한다.
+  function mergePopupGalleriesIntoSnapshot() {
+    const current = freshProfileSnapshot();
+    if (!current) return false;
+    const visibleGalleries = managedGalleriesFromDom(document);
+    if (!visibleGalleries.length) return false;
+    const galleries = sortManagedGalleries(
+      mergeManagedGalleries(current.galleries, visibleGalleries)
+    );
+    if (
+      managedGallerySignature(galleries) ===
+      managedGallerySignature(current.galleries)
+    ) {
+      return false;
+    }
+    const snapshot = storeProfileSnapshot({ ...current, galleries });
+    if (
+      profileSnapshotPopupVerifiedLoadId !== snapshot.loadId &&
+      galleries.some((gallery) => !gallery.role)
+    ) {
+      profileSnapshotPopupVerifiedLoadId = snapshot.loadId;
+      void verifyProfileSnapshotRoles(snapshot).then((verified) => {
+        const latest = freshProfileSnapshot();
+        if (!verified || verified === snapshot) return;
+        if (latest?.loadId !== snapshot.loadId) return;
+        storeProfileSnapshot({
+          ...latest,
+          galleries: sortManagedGalleries(
+            mergeManagedGalleries(latest.galleries, verified.galleries)
+          )
+        });
+      });
+    }
+    return true;
   }
 
   function scheduleProfileSnapshotRefreshFromPopup() {
     if (!footerNeedsProfileSnapshot(currentGalleryAffix()?.postFooter)) return;
     global.clearTimeout(profilePopupRefreshTimer);
     profilePopupRefreshTimer = global.setTimeout(() => {
-      const visibleGalleries = managedGalleriesFromDom(document);
-      if (!visibleGalleries.length) return;
-      if (!profileSnapshot) {
-        void ensureProfileSnapshot({ force: true });
-        return;
-      }
-      const mergedSnapshot = {
-        ...profileSnapshot,
-        galleries: sortManagedGalleries(
-          mergeManagedGalleries(profileSnapshot.galleries, visibleGalleries)
-        )
-      };
-      profileSnapshot = mergedSnapshot;
-      void verifyProfileSnapshotRoles(mergedSnapshot);
+      profilePopupRefreshTimer = 0;
+      mergePopupGalleriesIntoSnapshot();
     }, 180);
   }
 
@@ -1307,7 +1499,19 @@
     return [...byKey.values()];
   }
 
+  // 한 번의 scan 안에서는 문서 전체 탐색 결과를 한 번만 계산해 재사용한다.
   function findSubjectTabBar(root = document) {
+    if (root === document && scanCache) {
+      if (!scanCache.hasSubjectTabBar) {
+        scanCache.subjectTabBar = locateSubjectTabBar(root);
+        scanCache.hasSubjectTabBar = true;
+      }
+      return scanCache.subjectTabBar;
+    }
+    return locateSubjectTabBar(root);
+  }
+
+  function locateSubjectTabBar(root = document) {
     if (!root?.querySelectorAll) return null;
     const rowKeys = new Set(
       subjectNamesFromRows(document)
@@ -1845,7 +2049,8 @@
     const previous = currentSubjectFilterPanelOpacity();
     const opacity = applySubjectFilterPanelOpacity(panel, slider.value);
     const saveSerial = ++subjectFilterOpacitySaveSerial;
-    slider.disabled = true;
+    panel.dataset.savingOpacity = "true";
+    syncSubjectFilterPanelControls(panel);
     try {
       const response = await send({
         type: "SET_SUBJECT_FILTER_PANEL_OPACITY",
@@ -1863,26 +2068,51 @@
     } catch (error) {
       if (saveSerial !== subjectFilterOpacitySaveSerial) return;
       applySubjectFilterPanelOpacity(panel, previous);
-      showToast(error.message, "error");
+      showToast(koreanErrorMessage(error), "error");
     } finally {
       if (panel.isConnected && saveSerial === subjectFilterOpacitySaveSerial) {
-        slider.disabled = false;
+        panel.dataset.savingOpacity = "false";
+        syncSubjectFilterPanelControls(panel);
       }
     }
   }
 
+  // 저장 중인 항목만 잠근다. 다른 저장이 끝나도 진행 중인 저장의 잠금은 유지한다.
+  function syncSubjectFilterPanelControls(panel) {
+    const filterSaving = panel.dataset.saving === "true";
+    const writeSaving = panel.dataset.savingWrite === "true";
+    const opacitySaving = panel.dataset.savingOpacity === "true";
+    panel.setAttribute("aria-busy", String(filterSaving));
+    const hasChecked = Boolean(
+      panel.querySelector(".dcf-subject-filter-list input[type='checkbox']:checked")
+    );
+    panel
+      .querySelectorAll(
+        "input, button:not(.dcf-subject-filter-close), #dcf-subject-write-default"
+      )
+      .forEach((control) => {
+        let disabled = filterSaving;
+        if (control.matches("#dcf-subject-write-default")) {
+          disabled = writeSaving;
+        } else if (control.matches("#dcf-subject-write-follow")) {
+          disabled ||= writeSaving;
+        } else if (control.matches("#dcf-subject-filter-opacity")) {
+          disabled ||= opacitySaving;
+        } else if (control.matches(".dcf-subject-filter-clear")) {
+          disabled ||= !hasChecked;
+        }
+        control.disabled = disabled;
+      });
+  }
+
   function setSubjectFilterPanelDisabled(panel, disabled) {
     panel.dataset.saving = disabled ? "true" : "false";
-    panel.setAttribute("aria-busy", String(disabled));
-    panel
-      .querySelectorAll("input, button:not(.dcf-subject-filter-close)")
-      .forEach((control) => (control.disabled = disabled));
-    const clear = panel.querySelector(".dcf-subject-filter-clear");
-    if (clear && !disabled) {
-      clear.disabled = !panel.querySelector(
-        ".dcf-subject-filter-list input[type='checkbox']:checked"
-      );
-    }
+    syncSubjectFilterPanelControls(panel);
+  }
+
+  function setSubjectFilterStatus(panel, text) {
+    const status = panel?.querySelector("[data-dcf-subject-status]");
+    if (status) status.textContent = text;
   }
 
   async function saveSubjectFilterPanel(panel) {
@@ -1925,17 +2155,14 @@
         delete currentState.subjectFiltersByGalleryKey[context.galleryKey];
       }
       applySubjectFilter(document);
-      renderSubjectFilterPanel(panel);
-      const nextStatus = panel.querySelector("[data-dcf-subject-status]");
-      if (nextStatus) {
-        nextStatus.textContent = mode === "all" ? "필터 해제됨" : "적용됨";
-      }
+      renderSubjectFilterPanel(panel, { force: true });
+      setSubjectFilterStatus(panel, mode === "all" ? "필터 해제됨" : "적용됨");
     } catch (error) {
       if (saveSerial !== subjectFilterSaveSerial) return;
-      renderSubjectFilterPanel(panel);
-      const nextStatus = panel.querySelector("[data-dcf-subject-status]");
-      if (nextStatus) nextStatus.textContent = "적용 실패";
-      showToast(error.message, "error");
+      // 저장 전 상태로 체크를 되돌린다.
+      renderSubjectFilterPanel(panel, { force: true });
+      setSubjectFilterStatus(panel, "적용 실패");
+      showToast(koreanErrorMessage(error), "error");
     } finally {
       if (panel.isConnected && saveSerial === subjectFilterSaveSerial) {
         setSubjectFilterPanelDisabled(panel, false);
@@ -1946,11 +2173,7 @@
 
   function setSubjectWriteSettingPanelDisabled(panel, disabled) {
     panel.dataset.savingWrite = disabled ? "true" : "false";
-    panel
-      .querySelectorAll(
-        "#dcf-subject-write-follow, #dcf-subject-write-default"
-      )
-      .forEach((control) => (control.disabled = disabled));
+    syncSubjectFilterPanelControls(panel);
   }
 
   async function saveSubjectWriteSettingPanel(panel) {
@@ -1988,19 +2211,19 @@
       } else {
         delete currentState.subjectWriteSettingsByGalleryKey[context.galleryKey];
       }
-      renderSubjectFilterPanel(panel);
+      renderSubjectFilterPanel(panel, { force: true });
       const nextStatus = panel.querySelector(
         "[data-dcf-write-subject-status]"
       );
       if (nextStatus) nextStatus.textContent = "저장됨";
     } catch (error) {
       if (saveSerial !== subjectWriteSettingSaveSerial) return;
-      renderSubjectFilterPanel(panel);
+      renderSubjectFilterPanel(panel, { force: true });
       const nextStatus = panel.querySelector(
         "[data-dcf-write-subject-status]"
       );
       if (nextStatus) nextStatus.textContent = "저장 실패";
-      showToast(error.message, "error");
+      showToast(koreanErrorMessage(error), "error");
     } finally {
       if (panel.isConnected && saveSerial === subjectWriteSettingSaveSerial) {
         setSubjectWriteSettingPanelDisabled(panel, false);
@@ -2009,10 +2232,26 @@
     }
   }
 
-  function renderSubjectFilterPanel(panel) {
+  // 입력값(말머리 목록, 저장된 필터·글쓰기 설정, 불투명도)이 바뀐 경우에만
+  // 다시 그린다. 그래야 저장 중 체크 상태·잠금·"저장됨" 문구가 지워지지 않는다.
+  function renderSubjectFilterPanel(panel, { force = false } = {}) {
     if (!panel) return;
     const filter = currentSubjectFilter();
-    const subjects = availablePostSubjects(document);
+    const choices = availablePostSubjectChoices(document);
+    const subjects = choices.map((choice) => choice.subject);
+    const writeSetting = currentSubjectWriteSetting();
+    const renderKey = JSON.stringify([
+      panel.dataset.galleryKey || "",
+      filter?.mode || "",
+      filter?.subjects || [],
+      choices.map((choice) => [choice.subject, choice.subjectNo]),
+      writeSetting?.followCurrentTab !== false,
+      writeSetting?.defaultSubject || "",
+      currentSubjectFilterPanelOpacity()
+    ]);
+    if (!force && panel.__dcfRenderKey === renderKey) return;
+    panel.__dcfRenderKey = renderKey;
+
     const selected = new Set((filter?.subjects || []).map(normalizeCase));
     if (filter?.mode === "include" || filter?.mode === "exclude") {
       panel.dataset.mode = filter.mode;
@@ -2022,12 +2261,10 @@
     syncSubjectFilterModeAppearance(panel);
     applySubjectFilterPanelOpacity(panel);
 
-    const writeSetting = currentSubjectWriteSetting();
     const follow = panel.querySelector("#dcf-subject-write-follow");
     const defaultSelect = panel.querySelector("#dcf-subject-write-default");
     if (follow) follow.checked = writeSetting?.followCurrentTab !== false;
     if (defaultSelect) {
-      const choices = availablePostSubjectChoices(document);
       defaultSelect.replaceChildren();
       const nativeOption = document.createElement("option");
       nativeOption.value = "";
@@ -2043,16 +2280,6 @@
       }
       defaultSelect.value = writeSetting?.defaultSubject || "";
     }
-    const writeStatus = panel.querySelector(
-      "[data-dcf-write-subject-status]"
-    );
-    if (writeStatus && panel.dataset.savingWrite !== "true") {
-      writeStatus.textContent = "현재 탭이 없으면 기본값 적용";
-    }
-    setSubjectWriteSettingPanelDisabled(
-      panel,
-      panel.dataset.savingWrite === "true"
-    );
 
     const list = panel.querySelector(".dcf-subject-filter-list");
     list.replaceChildren();
@@ -2072,10 +2299,8 @@
 
     const empty = panel.querySelector(".dcf-subject-filter-empty");
     empty.hidden = subjects.length > 0;
-    const clear = panel.querySelector(".dcf-subject-filter-clear");
-    clear.disabled = selected.size === 0;
-    const saving = panel.dataset.saving === "true";
-    setSubjectFilterPanelDisabled(panel, saving);
+    // 진행 중인 저장(필터·글쓰기 말머리·불투명도)의 잠금은 그대로 유지한다.
+    syncSubjectFilterPanelControls(panel);
   }
 
   function createSubjectFilterPanel() {
@@ -2211,7 +2436,13 @@
       saveSubjectFilterPanel(panel);
     });
     footer.append(opacityLabel, clear);
-    panel.append(heading, modeRow, writeSettings, list, empty, footer);
+    // 평소에는 비어 있고(숨김) 저장할 때만 "적용 중…/적용됨/적용 실패"를 보여 준다.
+    const status = document.createElement("p");
+    status.className = "dcf-subject-filter-status";
+    status.dataset.dcfSubjectStatus = "true";
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    panel.append(heading, modeRow, writeSettings, list, empty, status, footer);
     (document.body || document.documentElement).append(panel);
     return panel;
   }
@@ -2278,6 +2509,10 @@
       closeSubjectFilterPanel();
       panel.dataset.galleryKey = context.galleryKey;
       panel.dataset.mode = currentSubjectFilter()?.mode || "exclude";
+      // 다른 갤러리로 바뀌면 이전 갤러리의 저장 결과 문구를 지운다.
+      setSubjectFilterStatus(panel, "");
+      const writeStatus = panel.querySelector("[data-dcf-write-subject-status]");
+      if (writeStatus) writeStatus.textContent = "현재 탭이 없으면 기본값 적용";
     }
     slot.dataset.galleryKey = context.galleryKey;
     renderSubjectFilterPanel(panel);
@@ -2537,8 +2772,24 @@
     scheduleFloatingPanelPosition(true);
   }
 
+  // 패널을 열 때마다 빠른 메뉴가 최신 상태를 다시 읽게 알린다.
+  function notifyFloatingPanelShown(frame) {
+    if (!frame?.contentWindow || !frame.src) return;
+    try {
+      frame.contentWindow.postMessage(
+        {
+          source: "dcf-floating-host",
+          type: "DCF_EMBEDDED_PANEL_SHOWN"
+        },
+        new URL(frame.src).origin
+      );
+    } catch {
+      // 빠른 메뉴가 아직 준비되지 않았으면 다음에 열 때 다시 알린다.
+    }
+  }
+
   function setFloatingPanelOpen(open) {
-    const { bubble, panel } = floatingElements();
+    const { bubble, panel, frame } = floatingElements();
     if (!bubble || !panel) return;
     panel.classList.toggle("is-open", open);
     panel.setAttribute("aria-hidden", String(!open));
@@ -2551,6 +2802,7 @@
     );
     if (open) {
       scheduleFloatingPanelPosition(true);
+      notifyFloatingPanelShown(frame);
     }
   }
 
@@ -2892,7 +3144,7 @@
         button.textContent = "나나툴 저장됨";
         showToast("기본 폴더에 북마크했습니다.");
       } catch (error) {
-        showToast(error.message, "error");
+        showToast(koreanErrorMessage(error), "error");
       } finally {
         button.disabled = false;
       }
@@ -3021,6 +3273,22 @@
     );
   }
 
+  // 같은 글·같은 이미지 묶음이면 저장 여부를 다시 묻지 않는다.
+  function imageBookmarkSyncKeyFor(sourceUrls) {
+    const urls = [...new Set(sourceUrls.filter(Boolean))].sort();
+    if (!urls.length) return "";
+    return JSON.stringify([
+      canonicalizeDcUrl(location.href, canonicalHref()) || location.href,
+      urls
+    ]);
+  }
+
+  function invalidateImageBookmarkSync() {
+    imageBookmarkSyncKey = "";
+    imageBookmarkPendingKey = "";
+    imageBookmarkSavedUrls = null;
+  }
+
   async function syncImageBookmarkButtons() {
     const buttons = imageBookmarkButtons();
     const sourceUrls = [
@@ -3029,6 +3297,8 @@
       )
     ];
     if (!sourceUrls.length) return;
+    const key = imageBookmarkSyncKeyFor(sourceUrls);
+    imageBookmarkPendingKey = key;
     try {
       const response = await send({
         type: "CHECK_IMAGE_BOOKMARKS",
@@ -3040,8 +3310,14 @@
       for (const button of buttons) {
         setImageBookmarkButtonState(button, saved.has(button.dataset.sourceUrl));
       }
+      imageBookmarkSavedUrls = saved;
     } catch {
       // 서비스 워커가 갱신되는 동안에는 현재 표시를 유지합니다.
+      imageBookmarkSavedUrls = null;
+    } finally {
+      // 실패해도 같은 묶음은 화면 변화마다 다시 묻지 않는다.
+      imageBookmarkSyncKey = key;
+      if (imageBookmarkPendingKey === key) imageBookmarkPendingKey = "";
     }
   }
 
@@ -3070,6 +3346,7 @@
           userGesture: true
         });
         for (const item of related) setImageBookmarkButtonState(item, false);
+        imageBookmarkSavedUrls?.delete(sourceUrl);
         showToast("이미지 북마크와 로컬 이미지 파일을 삭제했습니다.");
       } else {
         await send({
@@ -3078,11 +3355,13 @@
           userGesture: true
         });
         for (const item of related) setImageBookmarkButtonState(item, true);
+        imageBookmarkSavedUrls?.add(sourceUrl);
         showToast("이미지를 갤러리아 기본 폴더에 저장했습니다.");
       }
     } catch (error) {
       setImageBookmarkButtonState(button, wasSaved);
-      showToast(error.message, "error");
+      showToast(koreanErrorMessage(error), "error");
+      invalidateImageBookmarkSync();
       queueImageBookmarkSync();
     } finally {
       for (const item of related) item.disabled = false;
@@ -3092,6 +3371,7 @@
   function injectImageBookmarkControls(body = findPostBody()) {
     if (!body) return [];
     const controls = [];
+    const createdButtons = [];
     for (const image of body.querySelectorAll("img")) {
       if (isOwnedNode(image)) continue;
       const sourceUrl = imageBookmarkSource(image);
@@ -3118,13 +3398,33 @@
         slot.append(button);
         insertionTarget.insertAdjacentElement("afterend", slot);
         imageBookmarkControls.set(image, slot);
+        createdButtons.push(button);
       }
 
       const button = slot.querySelector(".dcf-image-bookmark-button");
       button.dataset.sourceUrl = sourceUrl;
       controls.push(slot);
     }
-    queueImageBookmarkSync();
+    const key = imageBookmarkSyncKeyFor(
+      controls.map(
+        (slot) =>
+          slot.querySelector(".dcf-image-bookmark-button")?.dataset.sourceUrl
+      )
+    );
+    if (key && key === imageBookmarkSyncKey) {
+      // 이미 확인한 묶음: 새로 만든 버튼에만 기억해 둔 상태를 입힌다.
+      if (imageBookmarkSavedUrls) {
+        for (const button of createdButtons) {
+          setImageBookmarkButtonState(
+            button,
+            imageBookmarkSavedUrls.has(button.dataset.sourceUrl)
+          );
+        }
+      }
+    } else if (key && key !== imageBookmarkPendingKey) {
+      imageBookmarkPendingKey = key;
+      queueImageBookmarkSync();
+    }
     return controls;
   }
 
@@ -3162,16 +3462,51 @@
     );
   }
 
-  function findOriginalPostAction(actionName, body = findPostBody()) {
-    if (!body) return null;
+  function currentPostNo() {
+    const canonicalUrl = canonicalizeDcUrl(location.href, canonicalHref());
+    if (!canonicalUrl) return "";
+    try {
+      return new URL(canonicalUrl).searchParams.get("no") || "";
+    } catch {
+      return "";
+    }
+  }
+
+  // 버튼 주소·onclick에 적힌 글 번호. 비어 있으면 번호로는 판단할 수 없다.
+  function postActionPostNumbers(control) {
+    const numbers = new Set();
+    const signature = [
+      control.getAttribute("href"),
+      control.getAttribute("onclick"),
+      control.getAttribute("data-url"),
+      control.getAttribute("formaction")
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .replaceAll("&amp;", "&");
+    for (const match of signature.matchAll(/\bno=(\d{1,12})\b/gi)) {
+      numbers.add(match[1]);
+    }
+    const dataNo = normalizeText(control.getAttribute("data-no"));
+    if (/^\d{1,12}$/.test(dataNo)) numbers.add(dataNo);
+    return numbers;
+  }
+
+  function originalPostActionCandidates(body) {
+    if (scanCache?.postActionBody === body && scanCache.postActionCandidates) {
+      return scanCache.postActionCandidates;
+    }
     const followingFlag = global.Node?.DOCUMENT_POSITION_FOLLOWING || 4;
-    const controls = [
+    const candidates = [
       ...document.querySelectorAll(
         "a, button, input[type='button'], input[type='submit']"
       )
     ].filter((control) => {
-      if (controlLabel(control) !== actionName) return false;
+      if (!["수정", "삭제"].includes(controlLabel(control))) return false;
       if (isOwnedNode(control) || control.closest(COMMENT_REGION_SELECTOR)) {
+        return false;
+      }
+      if (control.closest("#bottom_listwrap, .gall_list, .gall_listwrap")) {
         return false;
       }
       if (control.disabled || control.getAttribute("aria-disabled") === "true") {
@@ -3184,7 +3519,34 @@
         )
       );
     });
-    return controls[0] || null;
+    if (scanCache) {
+      scanCache.postActionBody = body;
+      scanCache.postActionCandidates = candidates;
+    }
+    return candidates;
+  }
+
+  // 지금 보는 글의 원래 수정·삭제 버튼만 돌려준다. 확실하지 않으면 null.
+  function findOriginalPostAction(actionName, body = findPostBody()) {
+    if (!body) return null;
+    const controls = originalPostActionCandidates(body).filter(
+      (control) => controlLabel(control) === actionName
+    );
+    const postNo = currentPostNo();
+    const numbered = controls.filter(
+      (control) => postActionPostNumbers(control).size > 0
+    );
+    const exact = numbered.find(
+      (control) => postNo && postActionPostNumbers(control).has(postNo)
+    );
+    if (exact) return exact;
+    // 번호가 없는 버튼은 본문 아래 버튼 상자에 하나뿐일 때만 믿는다.
+    const unnumbered = controls.filter(
+      (control) =>
+        !postActionPostNumbers(control).size &&
+        control.closest(POST_ACTION_BOX_SELECTOR)
+    );
+    return unnumbered.length === 1 ? unnumbered[0] : null;
   }
 
   function injectTopPostActions(body) {
@@ -3259,7 +3621,9 @@
     });
     return {
       node: block,
-      value: boundaryValue(text),
+      placement,
+      // <br>로 넣은 여러 줄도 나중에 같은 값으로 비교되도록 노드 글자로 기록한다.
+      value: boundaryValue(block.textContent),
       style: block.getAttribute("style") || "",
       kind: "element"
     };
@@ -3282,7 +3646,31 @@
     return PROFILE_TEMPLATE_TOKEN_PATTERN.test(String(value || ""));
   }
 
+  function isTemplateFooter(source) {
+    return (
+      /<\/?[a-z][\s\S]*>/i.test(String(source || "")) ||
+      footerNeedsProfileSnapshot(source)
+    );
+  }
 
+  // 링크 주소 안의 갤로그 토큰을 채운 뒤 디시 https 주소일 때만 돌려준다.
+  function profileLinkHref(value, gallogId) {
+    const safeGallogId = sanitizeGallogId(gallogId);
+    if (!safeGallogId) return "";
+    const source = String(value || "")
+      .trim()
+      .replaceAll(
+        "{{갤로그주소}}",
+        `https://gallog.dcinside.com/${encodeURIComponent(safeGallogId)}`
+      )
+      .replaceAll("{{갤로그ID}}", encodeURIComponent(safeGallogId));
+    if (/\{\{|\}\}/.test(source) || !DCFCore.isDcUrl(source)) return "";
+    try {
+      return new URL(source).href;
+    } catch {
+      return "";
+    }
+  }
 
   function sanitizeProfileTemplateStyle(value) {
     const source = String(value || "")
@@ -3389,7 +3777,10 @@
           if (safeStyle) element.setAttribute("style", safeStyle);
           else element.removeAttribute("style");
         } else if (name === "href" && tagName === "a") {
-          if (value !== "{{갤로그주소}}" && !DCFCore.isDcUrl(value)) {
+          if (
+            !DCFCore.isDcUrl(value) &&
+            !profileLinkHref(value, "nanatool")
+          ) {
             element.removeAttribute(name);
           }
         } else if (name === "src" && tagName === "img") {
@@ -3434,8 +3825,17 @@
     return template.content;
   }
 
+  // 주딱·파딱으로 확인된 갤러리만 명함에 싣는다. 확인 못 한 곳을 "운영"으로
+  // 공개하지 않는다.
+  function publishedManagedGalleries(snapshot) {
+    return (snapshot?.galleries || []).filter((gallery) =>
+      ["manager", "submanager"].includes(gallery.role)
+    );
+  }
+
   function replaceProfileTextTokens(root, snapshot) {
     const profile = snapshot.profile;
+    const galleries = publishedManagedGalleries(snapshot);
     const values = new Map([
       ["{{닉네임}}", normalizeText(profile.nickname) || profile.gallogId],
       ["{{갤로그ID}}", profile.gallogId],
@@ -3448,7 +3848,7 @@
       ["{{글댓비}}", profilePostCommentRatio(profile.posts, profile.comments)],
       ["{{오늘방문자}}", formatProfileCount(profile.todayVisitors)],
       ["{{총방문자}}", formatProfileCount(profile.totalVisitors)],
-      ["{{운영갤러리수}}", formatProfileCount(snapshot.galleries?.length || 0)]
+      ["{{운영갤러리수}}", formatProfileCount(galleries.length)]
     ]);
     const walker = document.createTreeWalker(
       root,
@@ -3509,6 +3909,13 @@
       }
     }
 
+    for (const link of root.querySelectorAll?.("a[href]") || []) {
+      const source = link.getAttribute("href") || "";
+      if (!/\{\{|\}\}/.test(source)) continue;
+      const resolved = profileLinkHref(source, profile.gallogId);
+      if (resolved) link.setAttribute("href", resolved);
+      else link.removeAttribute("href");
+    }
     for (const link of root.querySelectorAll?.("a[data-nanatool-gallog]") || []) {
       link.href = values.get("{{갤로그주소}}");
     }
@@ -3531,8 +3938,8 @@
         .querySelector("[data-nanatool-managed-gallery-template]")
         ?.cloneNode(true);
       galleryList.replaceChildren();
-      if (snapshot.galleries?.length && itemTemplate) {
-        for (const gallery of snapshot.galleries) {
+      if (galleries.length && itemTemplate) {
+        for (const gallery of galleries) {
           const item = itemTemplate.cloneNode(true);
           item.removeAttribute("data-nanatool-managed-gallery-template");
           if (item.matches("a")) {
@@ -3576,10 +3983,31 @@
     }
   }
 
+  function serializeFragment(fragment) {
+    const holder = document.createElement("div");
+    holder.append(fragment.cloneNode(true));
+    return holder.innerHTML;
+  }
+
+  // 활동 정보 없이 올릴 때: 명함 표만 빼고 나머지 꼬리말을 남긴다. 명함 밖에도
+  // 토큰이 남아 있으면 채울 수 없으므로 꼬리말 전체를 건너뛴다(false).
+  function omitProfileCardFromFragment(fragment) {
+    fragment
+      .querySelectorAll("[data-nanatool-profile-card]")
+      .forEach((card) => card.remove());
+    return !footerNeedsProfileSnapshot(serializeFragment(fragment));
+  }
+
+  function footerBlockHasContent(block) {
+    return Boolean(
+      normalizeText(block.textContent) || block.querySelector("img[src]")
+    );
+  }
+
+  // snapshot이 없으면 활동 명함을 뺀 꼬리말을 만든다. 넣을 것이 없으면 null.
+  // 어떤 경우에도 {{토큰}}이 그대로 남은 꼬리말은 만들지 않는다.
   function makePostFooterBlock(source, color, css, snapshot) {
-    const templateMode = /<\/?[a-z][\s\S]*>/i.test(source) ||
-      footerNeedsProfileSnapshot(source);
-    if (!templateMode) {
+    if (!isTemplateFooter(source)) {
       return makeAffixBlock(source, "post-footer", color, css);
     }
 
@@ -3592,31 +4020,143 @@
     const fragment = sanitizeFooterTemplate(source);
     if (snapshot) {
       replaceProfileTextTokens(fragment, snapshot);
+    } else if (
+      footerNeedsProfileSnapshot(source) &&
+      !omitProfileCardFromFragment(fragment)
+    ) {
+      return null;
     }
     block.append(fragment);
+    if (!snapshot && !footerBlockHasContent(block)) return null;
     return {
       node: block,
+      placement: "post-footer",
       value: boundaryValue(block.textContent),
       style: block.getAttribute("style") || "",
       kind: "element"
     };
   }
 
-  function removeRecordedAffixes(editor, record) {
-    if (!record?.nodes?.length) return true;
-    const intact = record.nodes.every(({ node, value, kind, style }) => {
-      if (!node.isConnected || node.parentNode !== editor) return false;
-      if (kind === "element") {
-        return (
-          boundaryValue(node.textContent) === value &&
-          (node.getAttribute("style") || "") === style
-        );
+  // 공백·줄바꿈 차이(<br> 포함)를 무시하고 비교하기 위한 글자열.
+  function affixComparableText(value) {
+    return String(value ?? "").replace(/[\s ​﻿]+/g, "");
+  }
+
+  // 템플릿에서 토큰과 운영 갤러리 목록을 뺀 고정 글자 조각들.
+  function footerSkeletonSegments(source) {
+    const fragment = sanitizeFooterTemplate(source);
+    for (const list of [
+      ...fragment.querySelectorAll("[data-nanatool-managed-galleries]")
+    ]) {
+      const card = list.closest("[data-nanatool-profile-card]");
+      const section =
+        list.closest("[data-nanatool-managed-section]") ||
+        (card?.getAttribute("data-nanatool-profile-layout") === "template-v5"
+          ? list.closest("tr")
+          : null);
+      (section || list).remove();
+    }
+    fragment
+      .querySelectorAll("[data-nanatool-managed-section]")
+      .forEach((section) => section.remove());
+    return affixComparableText(fragment.textContent)
+      .split(/\{\{[^{}]{1,40}\}\}/)
+      .filter(Boolean);
+  }
+
+  // 고정 글자 조각들이 순서대로, 한정된 길이 안에 모두 나오는지 본다.
+  function textSkeletonMatches(haystack, segments, maxSpan) {
+    if (!segments.length) return false;
+    let start = haystack.indexOf(segments[0]);
+    while (start >= 0) {
+      // 시작점마다 maxSpan 길이만 본다(긴 글에서도 검사 시간이 늘지 않게).
+      const windowText = haystack.slice(start, start + maxSpan);
+      let cursor = segments[0].length;
+      let matched = true;
+      for (const segment of segments.slice(1)) {
+        const index = windowText.indexOf(segment, cursor);
+        if (index < 0) {
+          matched = false;
+          break;
+        }
+        cursor = index + segment.length;
       }
-      return node.nodeValue === value;
-    });
-    if (!intact) return false;
-    for (const { node } of record.nodes) node.remove();
-    return true;
+      if (matched) return true;
+      start = haystack.indexOf(segments[0], start + 1);
+    }
+    return false;
+  }
+
+  function postHeaderPresent(root, block) {
+    if (root.querySelector("[data-nanatool-affix='post-header']")) return true;
+    const expected = affixComparableText(block.node.textContent);
+    return (
+      Boolean(expected) &&
+      affixComparableText(root.textContent).startsWith(expected)
+    );
+  }
+
+  // 수정 화면처럼 이미 꼬리말이 들어 있는 본문에 또 붙이지 않는다. 디시가
+  // data-nanatool-affix를 지웠어도 명함 표 표시, 끝 글자, 고정 글자 순서로 찾는다.
+  function postFooterPresent(root, block, source) {
+    if (root.querySelector("[data-nanatool-affix='post-footer']")) return true;
+    const profileTemplate = footerNeedsProfileSnapshot(source);
+    if (
+      profileTemplate &&
+      root.querySelector(
+        "[data-nanatool-profile-card], [data-nanatool-profile-layout]"
+      )
+    ) {
+      return true;
+    }
+    const haystack = affixComparableText(root.textContent);
+    const expected = affixComparableText(block?.node?.textContent);
+    if (expected && haystack.endsWith(expected)) return true;
+    if (!isTemplateFooter(source)) return false;
+
+    const segments = footerSkeletonSegments(source);
+    const staticLength = segments.join("").length;
+    if (
+      segments.length >= 2 &&
+      staticLength >= 6 &&
+      textSkeletonMatches(haystack, segments, staticLength * 2 + 400)
+    ) {
+      return true;
+    }
+    if (profileTemplate && block) {
+      // 예전 글이 명함 없이 꼬리말만 붙은 경우.
+      const withoutCard = makePostFooterBlock(source, "", "", null);
+      const remainder = affixComparableText(withoutCard?.node.textContent);
+      if (remainder.length >= 4 && haystack.endsWith(remainder)) return true;
+    }
+    return false;
+  }
+
+  function findRecordedAffixNode(root, entry) {
+    if (entry.node?.parentNode === root) {
+      return boundaryValue(entry.node.textContent) === entry.value &&
+        (entry.node.getAttribute("style") || "") === entry.style
+        ? entry.node
+        : null;
+    }
+    // HTML 편집 모드에서는 노드가 새로 만들어지므로 표시·글자·스타일로 찾는다.
+    return (
+      [...root.children].find(
+        (child) =>
+          child.getAttribute("data-nanatool-affix") === entry.placement &&
+          boundaryValue(child.textContent) === entry.value &&
+          (child.getAttribute("style") || "") === entry.style
+      ) || null
+    );
+  }
+
+  // 사용자가 손대지 않은 이전 머리말·꼬리말만 지운다. 지운 개수를 돌려준다.
+  function removeRecordedAffixes(root, record) {
+    if (!record?.nodes?.length) return 0;
+    const nodes = record.nodes.map((entry) => findRecordedAffixNode(root, entry));
+    if (nodes.some((node) => !node)) return 0;
+    for (const node of nodes) node.remove();
+    return nodes.length;
   }
 
   function findPostWriteForm(target = document) {
@@ -3632,11 +4172,17 @@
     return forms.length === 1 ? forms[0] : null;
   }
 
+  // 서머노트가 HTML 편집(코드 보기) 중이면 그 textarea가 실제 본문이다.
+  function activeCodeViewTextarea(editor) {
+    const codeView = editor?.closest?.(".note-editor.codeview");
+    return codeView?.querySelector("textarea.note-codable") || null;
+  }
+
   function cleanPostAnimatedImages(form = findPostWriteForm(), includeCodeView = false) {
     const editor = form?.querySelector(".note-editable[contenteditable='true']");
     if (!editor) return 0;
     const codeView = editor.closest(".note-editor.codeview");
-    const code = codeView?.querySelector("textarea.note-codable");
+    const code = activeCodeViewTextarea(editor);
     // HTML 편집 중인 초안은 제출 직전에만 처리한다.
     if (codeView && (!includeCodeView || !code)) return 0;
 
@@ -3650,7 +4196,11 @@
       if (!image.getAttribute("class")?.trim()) image.removeAttribute("class");
     }
     const html = template ? template.innerHTML : editor.innerHTML;
-    if (code) code.value = html;
+    if (code) {
+      code.value = html;
+      // 편집 화면으로 돌아가거나 디시가 편집 영역을 읽어도 같은 내용이 되게 맞춘다.
+      editor.innerHTML = html;
+    }
     const memo = form.querySelector("textarea#memo[name='memo'], textarea[name='memo']");
     if (memo) memo.value = html;
     return images.length;
@@ -3658,7 +4208,7 @@
 
   function applyPostAffixes(
     form = findPostWriteForm(),
-    profileOverride = profileSnapshot
+    profileOverride = freshProfileSnapshot()
   ) {
     const affix = currentGalleryAffix();
     if (!form || !affix) return false;
@@ -3677,14 +4227,24 @@
     );
     if (!editor || !memo) return false;
 
-    for (const image of editor.querySelectorAll(
+    // HTML 편집 중이면 코드 내용에 붙이고, 끝나면 편집 영역·memo를 코드에 맞춘다.
+    const code = activeCodeViewTextarea(editor);
+    const template = code ? document.createElement("template") : null;
+    if (template) template.innerHTML = code.value;
+    const root = template ? template.content : editor;
+    let changed = false;
+
+    for (const image of root.querySelectorAll(
       "[data-nanatool-affix='post-footer'] img[data-nanatool-character]"
     )) {
       if (/^data:image\//i.test(image.getAttribute("src") || "")) {
         image.removeAttribute("src");
+        changed = true;
       }
     }
 
+    // 명함용 꼬리말인데 정보가 없으면(불러오기 실패 뒤 다시 등록) 명함을 뺀다.
+    const snapshot = profileTemplate ? profileOverride || null : null;
     const hash = JSON.stringify([
       header,
       headerColor,
@@ -3693,60 +4253,88 @@
       footerColor,
       footerCss,
       profileTemplate,
-      profileTemplate && profileOverride
+      snapshot
         ? [
-            profileOverride.savedAt,
-            profileOverride.profile,
-            profileOverride.galleries
+            snapshot.savedAt,
+            snapshot.profile,
+            publishedManagedGalleries(snapshot)
           ]
         : null
     ]);
     const previous = postAffixState.get(editor);
-    if (previous && previous.hash !== hash) {
-      removeRecordedAffixes(editor, previous);
+    if (
+      previous &&
+      previous.hash !== hash &&
+      removeRecordedAffixes(root, previous)
+    ) {
+      changed = true;
     }
 
     const inserted = [];
-    let text = boundaryValue(editor.textContent);
-    if (
-      header &&
-      !editor.querySelector(":scope > [data-nanatool-affix='post-header']") &&
-      !text.startsWith(header)
-    ) {
+    if (header) {
       const prefix = makeAffixBlock(
         header,
         "post-header",
         headerColor,
         headerCss
       );
-      editor.insertBefore(prefix.node, editor.firstChild);
-      inserted.push(prefix);
-      text = boundaryValue(editor.textContent);
+      if (!postHeaderPresent(root, prefix)) {
+        root.insertBefore(prefix.node, root.firstChild);
+        inserted.push(prefix);
+      }
     }
-    if (
-      footer &&
-      !editor.querySelector(":scope > [data-nanatool-affix='post-footer']") &&
-      !text.endsWith(footer)
-    ) {
+    if (footer) {
       const suffix = makePostFooterBlock(
         footer,
         footerColor,
         footerCss,
-        profileOverride
+        snapshot
       );
-      editor.append(suffix.node);
-      inserted.push(suffix);
+      if (suffix && !postFooterPresent(root, suffix, footer)) {
+        root.append(suffix.node);
+        inserted.push(suffix);
+      }
     }
 
     if (inserted.length || !previous) {
       postAffixState.set(editor, { hash, nodes: inserted });
     }
+    if (inserted.length) changed = true;
+
+    if (code) {
+      // memo = 지금 코드 내용(+ 붙인 머리말·꼬리말). 이미 같으면 건드리지 않는다.
+      const html = changed ? template.innerHTML : code.value;
+      if (!changed && memo.value === html) return true;
+      if (changed) {
+        code.value = html;
+        dispatchValueEvents(code);
+      }
+      editor.innerHTML = html;
+      memo.value = html;
+      dispatchValueEvents(memo);
+      return true;
+    }
+    // 바뀐 것이 없으면 memo를 덮어쓰지 않는다(디시가 직접 동기화한다).
+    if (!changed) return true;
     memo.value = editor.innerHTML;
     dispatchValueEvents(editor);
     dispatchValueEvents(memo);
     return true;
   }
 
+  function isInsideSubmitExcludedContainer(control, form) {
+    for (
+      let node = control.parentElement;
+      node && node !== form;
+      node = node.parentElement
+    ) {
+      if (node.matches?.(POST_SUBMIT_EXCLUDED_CONTAINER_SELECTOR)) return true;
+    }
+    return false;
+  }
+
+  // 글쓰기 폼의 실제 등록·수정 버튼만 고른다. 폼 안 첨부·투표 창 같은 보조 창의
+  // 버튼은 제외한다(그런 버튼이 실제로 폼을 제출하면 submit 이벤트에서 처리한다).
   function isPostSubmitControl(target) {
     const control = target?.closest?.(
       "button, input[type='button'], input[type='submit']"
@@ -3754,6 +4342,7 @@
     if (!control) return false;
     const form = findPostWriteForm(control);
     if (!form || !form.contains(control)) return false;
+    if (isInsideSubmitExcludedContainer(control, form)) return false;
     return (
       control.matches("button[type='submit'], input[type='submit']") ||
       POST_SUBMIT_LABELS.has(controlLabel(control))
@@ -3799,42 +4388,100 @@
     const control = target?.closest?.(
       "button, input[type='button'], input[type='submit'], a"
     );
-    if (!control || !COMMENT_SUBMIT_LABELS.has(controlLabel(control))) {
+    if (
+      !control ||
+      !COMMENT_SUBMIT_LABELS.has(controlLabel(control).replace(/\s+/g, ""))
+    ) {
       return false;
     }
     return Boolean(findCommentTextarea(control));
   }
 
-
-  function profileCardReadyForSubmission(event, form) {
-    const footer = currentGalleryAffix()?.postFooter;
-    if (!footerNeedsProfileSnapshot(footer)) return true;
-    if (profileSnapshot) return true;
-
-    event.preventDefault();
-    event.stopImmediatePropagation();
+  function notifyProfileSnapshotFailure() {
+    profileSnapshotFailureNotified = true;
     showToast(
-      profileSnapshotError
-        ? `활동 정보를 불러오지 못했습니다: ${profileSnapshotError}`
-        : "활동 명함 정보를 불러오는 중입니다. 준비된 뒤 등록 버튼을 다시 눌러 주세요.",
-      profileSnapshotError ? "error" : "normal"
+      `활동 명함 정보를 불러오지 못했습니다: ${
+        profileSnapshotError || "알 수 없는 오류가 났습니다."
+      } 등록 버튼을 다시 누르면 활동 명함 없이 등록됩니다.`,
+      "error",
+      PROFILE_FAILURE_TOAST_DURATION
     );
-    void ensureProfileSnapshot().then((snapshot) => {
+  }
+
+  // 등록을 눌러 시작된(또는 이미 진행 중인) 불러오기의 결과를 한 번만 알린다.
+  function watchProfileSnapshotForSubmit(promise) {
+    if (profileSubmitNoticePromise === promise) return;
+    profileSubmitNoticePromise = promise;
+    void promise.then((snapshot) => {
+      if (profileSubmitNoticePromise !== promise) return;
+      profileSubmitNoticePromise = null;
       if (snapshot) {
         showToast("활동 명함 정보가 준비됐습니다. 등록 버튼을 다시 눌러 주세요.");
+      } else if (profileSnapshotError) {
+        notifyProfileSnapshotFailure();
       }
     });
-    return false;
+  }
+
+  function cancelSubmission(event) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
+  // 활동 명함이 필요한 꼬리말일 때 등록을 그대로 보낼지 정한다.
+  // - 5분 안의 정보가 있으면: 그 정보로 등록
+  // - 불러오는 중이면: 막고 안내
+  // - 실패를 이미 알렸으면: 활동 명함 없이 등록
+  // - 실패했지만 30초가 안 지났으면: 실패를 알리고 막음(다음 등록은 명함 없이)
+  // - 그 밖에는: 막고 한 번 불러옴
+  function profileCardGate(event) {
+    const snapshot = freshProfileSnapshot();
+    if (!footerNeedsProfileSnapshot(currentGalleryAffix()?.postFooter)) {
+      return { allowed: true, snapshot };
+    }
+    if (snapshot) return { allowed: true, snapshot };
+    if (
+      !profileSnapshotPromise &&
+      profileSnapshotError &&
+      profileSnapshotFailureNotified
+    ) {
+      return { allowed: true, snapshot: null };
+    }
+
+    cancelSubmission(event);
+    if (profileSnapshotPromise) {
+      showToast("활동 명함 정보를 불러오는 중입니다…");
+      watchProfileSnapshotForSubmit(profileSnapshotPromise);
+      return { allowed: false, snapshot: null };
+    }
+    if (
+      profileSnapshotError &&
+      Date.now() - profileSnapshotFailedAt < PROFILE_RETRY_INTERVAL
+    ) {
+      notifyProfileSnapshotFailure();
+      return { allowed: false, snapshot: null };
+    }
+    showToast("활동 명함 정보를 불러오는 중입니다…");
+    watchProfileSnapshotForSubmit(ensureProfileSnapshot());
+    return { allowed: false, snapshot: null };
+  }
+
+  // 등록 버튼 클릭·폼 제출·Ctrl+Enter가 모두 같은 순서로 처리한다.
+  function prepareArticleSubmission(event, form) {
+    if (!form) return false;
+    const gate = profileCardGate(event);
+    if (!gate.allowed) return false;
+    applyPostAffixes(form, gate.snapshot);
+    cleanPostAnimatedImages(form, true);
+    return true;
   }
 
   function handleEarlySubmission(event) {
     const target = event.target;
     if (event.type === "submit") {
       const form = target;
-      if (form?.matches?.("form[name='write'][action*='article_submit']")) {
-        if (!profileCardReadyForSubmission(event, form, event.submitter)) return;
-        applyPostAffixes(form);
-        cleanPostAnimatedImages(form, true);
+      if (form?.matches?.(POST_FORM_SELECTOR)) {
+        prepareArticleSubmission(event, form);
       } else if (form?.closest?.(COMMENT_REGION_SELECTOR)) {
         applyCommentFooter(form);
       }
@@ -3842,10 +4489,7 @@
     }
 
     if (isPostSubmitControl(target)) {
-      const form = findPostWriteForm(target);
-      if (!profileCardReadyForSubmission(event, form, target)) return;
-      applyPostAffixes(form);
-      cleanPostAnimatedImages(form, true);
+      prepareArticleSubmission(event, findPostWriteForm(target));
     } else if (isCommentSubmitControl(target)) {
       applyCommentFooter(target);
     }
@@ -3860,10 +4504,7 @@
       return;
     }
     if (event.target?.closest?.(".note-editable[contenteditable='true'], .note-codable")) {
-      const form = findPostWriteForm(event.target);
-      if (!profileCardReadyForSubmission(event, form)) return;
-      applyPostAffixes(form);
-      cleanPostAnimatedImages(form, true);
+      prepareArticleSubmission(event, findPostWriteForm(event.target));
     } else if (findCommentTextarea(event.target)) {
       applyCommentFooter(event.target);
     }
@@ -3880,19 +4521,22 @@
   }
 
   function scan(root = document) {
-    for (const writer of collectWriters(root)) processWriter(writer);
-    rememberVisibleSubjectTab();
-    applySubjectFilter(root);
-    injectSubjectFilterControl();
-    if (isNewPostWritePage()) applyWriteSubjectSetting();
-    cleanPostAnimatedImages();
-    injectBookmarkButton();
-    enhanceView();
-    if (
-      findPostWriteForm() &&
-      footerNeedsProfileSnapshot(currentGalleryAffix()?.postFooter)
-    ) {
-      ensureProfileSnapshot();
+    // 한 번의 검사 동안 말머리 줄·원본 수정/삭제 버튼 탐색 결과를 재사용한다.
+    const outerCache = scanCache;
+    scanCache = outerCache || {};
+    try {
+      for (const writer of collectWriters(root)) processWriter(writer);
+      rememberVisibleSubjectTab();
+      applySubjectFilter(root);
+      injectSubjectFilterControl();
+      if (isNewPostWritePage()) applyWriteSubjectSetting();
+      cleanPostAnimatedImages();
+      injectBookmarkButton();
+      enhanceView();
+      // 화면 변화마다 다시 부르지 않는다: 글쓰기 화면당 자동으로는 한 번만.
+      maybeAutoLoadProfileSnapshot();
+    } finally {
+      scanCache = outerCache;
     }
   }
 
@@ -3927,6 +4571,8 @@
       return;
     }
     currentState = response.state;
+    // 다른 화면에서 이미지 북마크가 바뀌었을 수 있으니 한 번 다시 확인한다.
+    invalidateImageBookmarkSync();
     applyRootState(currentState);
     resetDecorations();
     scan(document);
@@ -3960,7 +4606,22 @@
     sanitizeProfileTemplateStyle,
     sanitizeFooterTemplate,
     makePostFooterBlock,
-    profileCardReadyForSubmission,
+    profileCardGate,
+    prepareArticleSubmission,
+    ensureProfileSnapshot,
+    freshProfileSnapshot,
+    verifyProfileSnapshotRoles,
+    mergePopupGalleriesIntoSnapshot,
+    publishedManagedGalleries,
+    postFooterPresent,
+    postHeaderPresent,
+    footerSkeletonSegments,
+    textSkeletonMatches,
+    affixComparableText,
+    koreanErrorMessage,
+    isPostSubmitControl,
+    isCommentSubmitControl,
+    scan,
     collectPostRows,
     extractPostSubject,
     subjectNamesFromRows,
@@ -4008,8 +4669,27 @@
     handleSubmissionShortcut,
     resetDecorations,
     setProfileSnapshotForTest(snapshot) {
-      profileSnapshot = snapshot;
+      // 진행 중이던 불러오기 결과는 버리고 활동 명함 상태를 처음으로 돌린다.
+      profileSnapshotLoadSerial += 1;
+      profileSnapshotPromise = null;
+      profileSubmitNoticePromise = null;
       profileSnapshotError = "";
+      profileSnapshotFailedAt = 0;
+      profileSnapshotFailureNotified = false;
+      profileSnapshotAutoLoadStarted = false;
+      profileSnapshotPopupVerifiedLoadId = 0;
+      storeProfileSnapshot(snapshot);
+    },
+    profileStateForTest() {
+      return {
+        hasSnapshot: Boolean(profileSnapshot),
+        loading: Boolean(profileSnapshotPromise),
+        error: profileSnapshotError,
+        failedAt: profileSnapshotFailedAt,
+        failureNotified: profileSnapshotFailureNotified,
+        autoLoadStarted: profileSnapshotAutoLoadStarted,
+        expiryScheduled: Boolean(profileSnapshotExpiryTimer)
+      };
     },
     setStateForTest(state) {
       currentState = state;
@@ -4051,6 +4731,10 @@
   document.addEventListener("keydown", handleSubjectFilterKeydown, true);
   global.addEventListener("resize", positionSubjectFilterPanel);
   global.addEventListener("scroll", positionSubjectFilterPanel, true);
+  // 뒤로/앞으로 가기로 캐시에서 복원된 화면은 설정이 바뀌었을 수 있으니 다시 읽는다.
+  global.addEventListener("pageshow", (event) => {
+    if (event.persisted) void refreshState();
+  });
 
   const observer = new MutationObserver((mutations) => {
     syncFloatingPanelTheme();

@@ -49,7 +49,31 @@ const MAX_IMAGE_BOOKMARKS = 500;
 const MAX_IMAGE_LIBRARY_BYTES = 1024 * 1024 * 1024;
 const IMAGE_SAVE_RATE_WINDOW = 60 * 1000;
 const IMAGE_SAVE_RATE_LIMIT = 20;
-const ROLE_FETCH_CONCURRENCY = 4;
+const IMAGE_SAVE_RATE_KEY = "nanatoolImageSaveActivity";
+const IMAGE_GC_KEY = "nanatoolImageGcAt";
+const IMAGE_GC_INTERVAL = 24 * 60 * 60 * 1000;
+const ROLE_FETCH_CONCURRENCY = 2;
+const MAX_ROLE_PAGES = 20;
+const ROLE_PAGE_CACHE_KEY = "nanatoolRolePageCache";
+const ROLE_PAGE_CACHE_TTL = 24 * 60 * 60 * 1000;
+const ROLE_PAGE_FAILURE_TTL = 10 * 60 * 1000;
+const ROLE_PAGE_CACHE_MAX_ENTRIES = 100;
+const MAX_ROLE_SECTION_LENGTH = 16 * 1024;
+const MAX_ROLE_FRAGMENT_LENGTH = 32 * 1024;
+const PROFILE_FAILURE_TTL = 30 * 1000;
+const EMBEDDED_MESSAGE_TYPES = new Set([
+  "GET_RELEASE_UPDATE_STATUS",
+  "GET_EMBEDDED_STATE",
+  "GET_EMBED_CONTEXT",
+  "UPDATE_SETTINGS",
+  "SET_SUBJECT_WRITE_SETTING",
+  "UPSERT_BOOKMARK",
+  "UPSERT_HIGHLIGHT"
+]);
+const EMBEDDED_SETTING_KEYS = Object.freeze([
+  "hideAnonymousPosts",
+  "hideAnonymousComments"
+]);
 const IMAGE_REFERER_RULE_ID = 987001;
 const IMAGE_REFERER = "https://gall.dcinside.com/";
 const RELEASE_UPDATE_KEY = "nanatoolReleaseUpdate";
@@ -60,17 +84,80 @@ const RELEASE_CHECK_INTERVAL_MINUTES = 30;
 const RELEASE_STATUS_STALE_MS = 10 * 60 * 1000;
 const RELEASE_FETCH_TIMEOUT = 8000;
 const RELEASE_MAX_RESPONSE_BYTES = 256 * 1024;
+const RELEASE_RATE_LIMIT_DEFAULT_MS = 30 * 60 * 1000;
+const RELEASE_MAX_RETRY_DELAY_MS = 24 * 60 * 60 * 1000;
 
 let mutationQueue = Promise.resolve();
+let sessionQueue = Promise.resolve();
 let imageRefererRulePromise = null;
 let initializationPromise = null;
 let releaseCheckPromise = null;
-const imageSaveActivity = new Map();
+const memorySession = new Map();
+const profileSourceFailures = new Map();
+const profileSourceRequests = new Map();
 
 function errorMessage(error) {
   return error instanceof Error
     ? error.message
     : String(error || "알 수 없는 오류");
+}
+
+function hasKorean(value) {
+  return /[가-힣]/.test(String(value || ""));
+}
+
+// 화면에 그대로 보일 수 있는 오류는 한국어로만 돌려준다.
+function userFacingErrorMessage(error) {
+  const message = errorMessage(error);
+  if (hasKorean(message)) return message;
+  if (error?.name === "AbortError") {
+    return "요청 시간이 초과되었습니다. 잠시 뒤 다시 시도해 주세요.";
+  }
+  return "요청을 처리하지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
+}
+
+function sessionArea() {
+  const area = chrome.storage?.session;
+  return area &&
+    typeof area.get === "function" &&
+    typeof area.set === "function"
+    ? area
+    : null;
+}
+
+async function readSessionValue(key) {
+  const area = sessionArea();
+  if (area) {
+    try {
+      const stored = await area.get(key);
+      return stored?.[key];
+    } catch (error) {
+      console.warn("나나툴: 세션 저장소 읽기 실패", errorMessage(error));
+    }
+  }
+  return clone(memorySession.get(key));
+}
+
+async function writeSessionValue(key, value) {
+  memorySession.set(key, clone(value));
+  const area = sessionArea();
+  if (!area) return;
+  try {
+    await area.set({ [key]: value });
+  } catch (error) {
+    console.warn("나나툴: 세션 저장소 쓰기 실패", errorMessage(error));
+  }
+}
+
+// 같은 세션 키의 읽기-수정-쓰기를 순서대로 처리합니다.
+function updateSessionValue(key, updater) {
+  const operation = sessionQueue.then(async () => {
+    const next = await updater(await readSessionValue(key));
+    if (next !== undefined) await writeSessionValue(key, next);
+    return next;
+  });
+  sessionQueue = operation.catch(() => undefined);
+  return operation;
 }
 
 function assert(condition, message) {
@@ -126,9 +213,9 @@ function embeddedState(state) {
   };
 }
 
-function isDcSender(sender) {
+function isDcPageUrl(value) {
   try {
-    const url = new URL(senderUrl(sender));
+    const url = new URL(String(value || ""));
     return (
       isDcUrl(url.href) &&
       (url.hostname === "gall.dcinside.com" ||
@@ -139,6 +226,29 @@ function isDcSender(sender) {
   }
 }
 
+function isDcSender(sender) {
+  return isDcPageUrl(senderUrl(sender));
+}
+
+// 빠른 설정 iframe이 들어 있는 디시 탭. 활성 탭이 아니라 메시지를 보낸
+// iframe의 탭(sender.tab)을 기준으로 삼는다.
+function embeddedHostTab(sender) {
+  if (!isEmbeddedPage(sender)) return null;
+  const tabId = sender?.tab?.id;
+  if (!Number.isInteger(tabId) || tabId < 0) return null;
+  const url = String(sender.tab.url || "");
+  return { tabId, url: isDcPageUrl(url) ? url : "" };
+}
+
+function embeddedSettingsPatch(patch) {
+  const filtered = {};
+  for (const key of EMBEDDED_SETTING_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(patch, key)) {
+      filtered[key] = patch[key];
+    }
+  }
+  return filtered;
+}
 
 function imageSaveRateKey(sender) {
   const tabId = Number.isInteger(sender?.tab?.id) ? sender.tab.id : "page";
@@ -146,19 +256,37 @@ function imageSaveRateKey(sender) {
   return `${tabId}:${frameId}`;
 }
 
-function assertImageSaveRate(sender) {
+// 서비스 워커가 다시 시작돼도 저장 횟수 제한이 풀리지 않도록
+// chrome.storage.session에 최근 저장 시각을 둔다.
+async function assertImageSaveRate(sender) {
   if (!isDcSender(sender)) return;
-  const now = Date.now();
   const key = imageSaveRateKey(sender);
-  const recent = (imageSaveActivity.get(key) || []).filter(
-    (timestamp) => now - timestamp < IMAGE_SAVE_RATE_WINDOW
-  );
-  assert(
-    recent.length < IMAGE_SAVE_RATE_LIMIT,
-    "이미지를 너무 빠르게 저장하고 있습니다. 잠시 뒤 다시 시도해 주세요."
-  );
-  recent.push(now);
-  imageSaveActivity.set(key, recent);
+  await updateSessionValue(IMAGE_SAVE_RATE_KEY, (stored) => {
+    const now = Date.now();
+    const activity = {};
+    if (stored && typeof stored === "object") {
+      for (const [entryKey, timestamps] of Object.entries(stored)) {
+        const recent = (Array.isArray(timestamps) ? timestamps : [])
+          .map(Number)
+          .filter(
+            (timestamp) =>
+              Number.isFinite(timestamp) &&
+              timestamp <= now &&
+              now - timestamp < IMAGE_SAVE_RATE_WINDOW
+          );
+        if (recent.length) {
+          activity[entryKey] = recent.slice(-IMAGE_SAVE_RATE_LIMIT);
+        }
+      }
+    }
+    const recent = activity[key] || [];
+    assert(
+      recent.length < IMAGE_SAVE_RATE_LIMIT,
+      "이미지를 너무 빠르게 저장하고 있습니다. 잠시 뒤 다시 시도해 주세요."
+    );
+    activity[key] = [...recent, now];
+    return activity;
+  });
 }
 
 function imageLibraryBytes(state) {
@@ -218,15 +346,16 @@ function currentExtensionVersion() {
   }
 }
 
+// Chrome manifest 버전은 1~4개의 숫자 부분을 허용한다("1.1" 등).
+// 비교할 때는 빠진 부분을 0으로 채운 4자리로 맞춘다.
 function parseNumericVersion(value) {
-  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$/i.exec(
-    String(value || "").trim()
-  );
+  const match = /^v?(\d+(?:\.\d+){0,3})$/i.exec(String(value || "").trim());
   if (!match) return null;
-  const parts = match.slice(1).map((part) => Number(part || 0));
+  const parts = match[1].split(".").map(Number);
   if (parts.some((part) => !Number.isSafeInteger(part) || part > 2147483647)) {
     return null;
   }
+  while (parts.length < 4) parts.push(0);
   return parts;
 }
 
@@ -336,22 +465,34 @@ async function updateReleaseBadge(status) {
   }
 }
 
+// 헤더가 없을 때 Number(null) === 0이 되어 바로 재시도하지 않도록,
+// 값이 실제로 있을 때만 사용하고 없으면 x-ratelimit-reset → 30분 기본값 순으로 정한다.
 function releaseRetryAfter(response, now = Date.now()) {
-  const retryAfter = Number(response.headers.get("retry-after"));
-  if (Number.isFinite(retryAfter) && retryAfter >= 0) {
-    return new Date(
-      now + Math.min(retryAfter, 24 * 60 * 60) * 1000
-    ).toISOString();
+  const latest = now + RELEASE_MAX_RETRY_DELAY_MS;
+  const retryAfterHeader = String(
+    response?.headers?.get("retry-after") ?? ""
+  ).trim();
+  if (retryAfterHeader) {
+    if (/^\d+$/.test(retryAfterHeader)) {
+      return new Date(
+        Math.min(now + Number(retryAfterHeader) * 1000, latest)
+      ).toISOString();
+    }
+    const retryAt = Date.parse(retryAfterHeader);
+    if (Number.isFinite(retryAt) && retryAt > now) {
+      return new Date(Math.min(retryAt, latest)).toISOString();
+    }
   }
-  const resetAt = Number(response.headers.get("x-ratelimit-reset"));
-  if (Number.isFinite(resetAt) && resetAt > now / 1000) {
-    return new Date(
-      Math.min(resetAt * 1000, now + 24 * 60 * 60 * 1000)
-    ).toISOString();
+  const resetHeader = String(
+    response?.headers?.get("x-ratelimit-reset") ?? ""
+  ).trim();
+  if (/^\d+$/.test(resetHeader)) {
+    const resetAt = Number(resetHeader) * 1000;
+    if (resetAt > now) {
+      return new Date(Math.min(resetAt, latest)).toISOString();
+    }
   }
-  return new Date(
-    now + RELEASE_CHECK_INTERVAL_MINUTES * 60 * 1000
-  ).toISOString();
+  return new Date(now + RELEASE_RATE_LIMIT_DEFAULT_MS).toISOString();
 }
 
 function releaseStatusIsStale(status, now = Date.now()) {
@@ -609,9 +750,22 @@ async function fetchDcText(
       text: new TextDecoder().decode(bytes),
       url: response.url || url
     };
+  } catch (error) {
+    throw new Error(dcFetchErrorMessage(error));
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+// fetch·abort가 던지는 영어 오류("Failed to fetch" 등)를 한국어로 바꾼다.
+function dcFetchErrorMessage(error) {
+  if (error?.name === "AbortError") {
+    return "디시인사이드 응답 시간이 초과되었습니다.";
+  }
+  const message = errorMessage(error);
+  return hasKorean(message)
+    ? message
+    : "디시인사이드에 연결하지 못했습니다. 네트워크 상태를 확인해 주세요.";
 }
 
 function imageRefererRule() {
@@ -776,6 +930,9 @@ async function fetchDcImageBlob(
     if (error?.name === "AbortError") {
       throw new Error("이미지를 불러오는 시간이 초과되었습니다.");
     }
+    if (!hasKorean(errorMessage(error))) {
+      throw new Error("디시인사이드 이미지를 내려받지 못했습니다.");
+    }
     throw error;
   } finally {
     clearTimeout(timeoutId);
@@ -783,8 +940,7 @@ async function fetchDcImageBlob(
 }
 
 
-async function fetchProfileSources(gallogId) {
-  const hintedGallogId = sanitizeGallogId(gallogId);
+async function fetchProfileSourcesNow(hintedGallogId) {
   const [initialGallog, managed] = await Promise.allSettled([
     fetchDcText("https://gallog.dcinside.com/"),
     fetchDcText(MANAGED_GALLERY_LIST_URL, {
@@ -792,10 +948,13 @@ async function fetchProfileSources(gallogId) {
       timeout: MANAGED_GALLERY_FETCH_TIMEOUT
     })
   ]);
-  assert(
-    initialGallog.status === "fulfilled",
-    "갤로그 활동 정보를 불러오지 못했습니다."
-  );
+  if (initialGallog.status !== "fulfilled") {
+    throw new Error(
+      `갤로그 활동 정보를 불러오지 못했습니다. ${dcFetchErrorMessage(
+        initialGallog.reason
+      )}`
+    );
+  }
 
   let gallog = initialGallog.value;
   const resolvedGallogId = gallogIdFromResponse(gallog.url, gallog.text);
@@ -810,9 +969,15 @@ async function fetchProfileSources(gallogId) {
     );
   }
   if (!gallogIdFromResponse(gallog.url, "")) {
-    gallog = await fetchDcText(
-      `https://gallog.dcinside.com/${encodeURIComponent(resolvedGallogId)}`
-    );
+    try {
+      gallog = await fetchDcText(
+        `https://gallog.dcinside.com/${encodeURIComponent(resolvedGallogId)}`
+      );
+    } catch (error) {
+      throw new Error(
+        `내 갤로그 활동 정보를 불러오지 못했습니다. ${dcFetchErrorMessage(error)}`
+      );
+    }
   }
 
   return {
@@ -823,10 +988,100 @@ async function fetchProfileSources(gallogId) {
   };
 }
 
-async function fetchGalleryRolePages(galleries) {
+// 같은 요청이 실패한 직후(30초 안)에는 디시에 다시 요청하지 않고 같은 오류를
+// 돌려준다. 동시에 들어온 같은 요청은 하나의 네트워크 요청으로 합친다.
+function fetchProfileSources(gallogId, now = Date.now()) {
+  const hintedGallogId = sanitizeGallogId(gallogId);
+  const key = hintedGallogId.toLowerCase();
+  const failure = profileSourceFailures.get(key);
+  if (failure && now - failure.at < PROFILE_FAILURE_TTL && now >= failure.at) {
+    return Promise.reject(new Error(failure.message));
+  }
+  profileSourceFailures.delete(key);
+
+  const pending = profileSourceRequests.get(key);
+  if (pending) return pending;
+  const request = fetchProfileSourcesNow(hintedGallogId)
+    .catch((error) => {
+      const message = userFacingErrorMessage(error);
+      profileSourceFailures.set(key, { at: Date.now(), message });
+      throw new Error(message);
+    })
+    .finally(() => {
+      profileSourceRequests.delete(key);
+    });
+  profileSourceRequests.set(key, request);
+  return request;
+}
+
+// 공개 갤러리 목록 HTML에서 content.js가 운영진 역할을 읽는 `.info_cont`
+// 영역만 잘라 낸다. 전체 HTML을 캐시하거나 페이지로 보내지 않기 위한 것이다.
+function extractRoleSections(html) {
+  const source = String(html || "");
+  const openPattern =
+    /<([a-z][a-z0-9]*)\b[^>]*?\bclass\s*=\s*["'][^"']*\binfo_cont\b[^"']*["'][^>]*>/gi;
+  const fragments = [];
+  let total = 0;
+  let match;
+  while ((match = openPattern.exec(source)) && total < MAX_ROLE_FRAGMENT_LENGTH) {
+    const start = match.index;
+    const tagName = match[1].toLowerCase();
+    const tagPattern = new RegExp(`<(/?)${tagName}\\b[^>]*>`, "gi");
+    tagPattern.lastIndex = start + match[0].length;
+    const limit = start + MAX_ROLE_SECTION_LENGTH;
+    let depth = 1;
+    let end = -1;
+    let tag;
+    while ((tag = tagPattern.exec(source)) && tag.index < limit) {
+      if (tag[1]) {
+        depth -= 1;
+        if (depth === 0) {
+          end = tag.index + tag[0].length;
+          break;
+        }
+      } else if (!tag[0].endsWith("/>")) {
+        depth += 1;
+      }
+    }
+    if (end < 0) end = Math.min(source.length, limit);
+    const fragment = source.slice(
+      start,
+      Math.min(end, start + MAX_ROLE_FRAGMENT_LENGTH - total)
+    );
+    fragments.push(fragment);
+    total += fragment.length;
+    openPattern.lastIndex = Math.max(end, start + match[0].length);
+  }
+  return fragments.join("\n");
+}
+
+function roleCacheEntryIsFresh(entry, now) {
+  const fetchedAt = Number(entry?.fetchedAt);
+  if (!Number.isFinite(fetchedAt) || fetchedAt > now) return false;
+  const ttl = entry.failed ? ROLE_PAGE_FAILURE_TTL : ROLE_PAGE_CACHE_TTL;
+  return now - fetchedAt < ttl;
+}
+
+function pruneRolePageCache(stored, now) {
+  const entries = Object.entries(
+    stored && typeof stored === "object" ? stored : {}
+  )
+    .filter(
+      ([galleryKey, entry]) =>
+        DCFCore.sanitizeGalleryKey(galleryKey) === galleryKey &&
+        roleCacheEntryIsFresh(entry, now) &&
+        (entry.failed === true || typeof entry.html === "string")
+    )
+    .sort((a, b) => Number(b[1].fetchedAt) - Number(a[1].fetchedAt))
+    .slice(0, ROLE_PAGE_CACHE_MAX_ENTRIES);
+  return Object.fromEntries(entries);
+}
+
+async function fetchGalleryRolePages(galleries, now = Date.now()) {
   const requests = [];
   const seen = new Set();
-  for (const item of Array.isArray(galleries) ? galleries.slice(0, 50) : []) {
+  for (const item of Array.isArray(galleries) ? galleries.slice(0, 100) : []) {
+    if (requests.length >= MAX_ROLE_PAGES) break;
     const url = canonicalGalleryListUrl(item?.galleryKind, item?.galleryId);
     const galleryKey = makeGalleryKey(
       sanitizeGalleryKind(item?.galleryKind),
@@ -837,19 +1092,52 @@ async function fetchGalleryRolePages(galleries) {
     requests.push({ galleryKey, url });
   }
 
+  const cache = pruneRolePageCache(
+    await readSessionValue(ROLE_PAGE_CACHE_KEY),
+    now
+  );
+  const pages = [];
+  const pending = [];
+  for (const request of requests) {
+    const cached = cache[request.galleryKey];
+    if (!cached) {
+      pending.push(request);
+    } else if (!cached.failed) {
+      pages.push({ ...request, html: cached.html });
+    }
+  }
+  if (!pending.length) return pages;
+
+  // 운영진 표시는 공개 목록 페이지에 있으므로 쿠키 없이 요청한다.
   const results = await allSettledWithConcurrency(
-    requests,
+    pending,
     ROLE_FETCH_CONCURRENCY,
     async (request) => ({
       ...request,
-      html: (
-        await fetchDcText(request.url, { timeout: ROLE_FETCH_TIMEOUT })
-      ).text
+      html: extractRoleSections(
+        (
+          await fetchDcText(request.url, {
+            timeout: ROLE_FETCH_TIMEOUT,
+            credentials: "omit"
+          })
+        ).text
+      )
     })
   );
-  return results
-    .filter((result) => result.status === "fulfilled")
-    .map((result) => result.value);
+  const updates = {};
+  results.forEach((result, index) => {
+    const { galleryKey } = pending[index];
+    if (result.status === "fulfilled") {
+      pages.push(result.value);
+      updates[galleryKey] = { html: result.value.html, fetchedAt: now };
+    } else {
+      updates[galleryKey] = { failed: true, fetchedAt: now };
+    }
+  });
+  await updateSessionValue(ROLE_PAGE_CACHE_KEY, (stored) =>
+    pruneRolePageCache({ ...(stored || {}), ...updates }, now)
+  );
+  return pages;
 }
 
 async function readBubblePosition() {
@@ -863,16 +1151,26 @@ async function writeBubblePosition(position) {
   return safe;
 }
 
+// 콘텐츠 스크립트가 storage.local을 직접 읽지 못하게 막는 보조 장치다.
+// 지원되지 않거나 실패해도 동작을 멈추지 않으며, 권한 판단은 이 설정에 기대지 않고
+// handleMessage의 발신자 확인으로 한다.
 async function lockLocalStorage() {
+  const local = chrome.storage?.local;
+  if (typeof local?.setAccessLevel !== "function") {
+    console.warn(
+      "나나툴: 이 브라우저는 storage.local 접근 수준 설정을 지원하지 않습니다. 메시지 발신자 확인으로만 보호합니다."
+    );
+    return false;
+  }
   try {
-    await chrome.storage.local.setAccessLevel({
-      accessLevel: "TRUSTED_CONTEXTS"
-    });
+    await local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
+    return true;
   } catch (error) {
     console.warn(
-      "나나툴: 로컬 저장소 접근 수준 설정 실패",
+      "나나툴: storage.local 접근 수준(TRUSTED_CONTEXTS) 설정 실패. 메시지 발신자 확인으로만 보호합니다.",
       errorMessage(error)
     );
+    return false;
   }
 }
 
@@ -888,25 +1186,38 @@ function needsMigration(raw) {
   );
 }
 
-async function readState() {
+async function readStoredState() {
   const stored = await chrome.storage.local.get(STATE_KEY);
-  if (!stored[STATE_KEY]) {
-    const initial = defaultState();
-    await chrome.storage.local.set({ [STATE_KEY]: initial });
-    return initial;
-  }
-
   const raw = stored[STATE_KEY];
-  const safe = sanitizeState(raw);
-  if (needsMigration(raw)) {
-    await chrome.storage.local.set({ [STATE_KEY]: safe });
-    const verified = await chrome.storage.local.get(STATE_KEY);
-    assert(
-      verified[STATE_KEY]?.schemaVersion === DCFCore.SCHEMA_VERSION,
-      "설정 데이터 마이그레이션을 확인하지 못했습니다."
-    );
-  }
-  return safe;
+  if (!raw) return { state: defaultState(), needsWrite: true };
+  return { state: sanitizeState(raw), needsWrite: needsMigration(raw) };
+}
+
+// 상태 변경 큐 안에서만 호출한다. 기본값 생성·마이그레이션 쓰기를 포함한다.
+async function readStateInQueue() {
+  const { state, needsWrite } = await readStoredState();
+  if (!needsWrite) return state;
+  await chrome.storage.local.set({ [STATE_KEY]: state });
+  const verified = await chrome.storage.local.get(STATE_KEY);
+  assert(
+    verified[STATE_KEY]?.schemaVersion === DCFCore.SCHEMA_VERSION,
+    "설정 데이터 마이그레이션을 확인하지 못했습니다."
+  );
+  return state;
+}
+
+function enqueueStateTask(task) {
+  const operation = mutationQueue.then(task);
+  mutationQueue = operation.catch(() => undefined);
+  return operation;
+}
+
+// 읽기 전용 경로. 기본값 생성이나 마이그레이션 쓰기가 필요하면 다른 변경과
+// 겹치지 않도록 상태 변경 큐를 거친다(큐 안에서는 readStateInQueue를 쓴다).
+async function readState() {
+  const snapshot = await readStoredState();
+  if (!snapshot.needsWrite) return snapshot.state;
+  return enqueueStateTask(readStateInQueue);
 }
 
 async function writeState(state) {
@@ -915,18 +1226,50 @@ async function writeState(state) {
   return safe;
 }
 
-function mutateState(mutator) {
-  const operation = mutationQueue.then(async () => {
-    const current = await readState();
+// afterCommit은 상태 저장이 성공한 뒤 같은 큐 안에서 실행된다.
+function mutateState(mutator, { afterCommit } = {}) {
+  return enqueueStateTask(async () => {
+    const current = await readStateInQueue();
     const draft = clone(current);
     const result = await mutator(draft);
     draft.revision = current.revision + 1;
     const state = await writeState(draft);
+    if (afterCommit) await afterCommit(state, result);
     return { state, result };
   });
+}
 
-  mutationQueue = operation.catch(() => undefined);
-  return operation;
+function imageSourceSignature(rawState) {
+  const bookmarks = Array.isArray(rawState?.imageBookmarks)
+    ? rawState.imageBookmarks
+    : [];
+  return bookmarks
+    .map((bookmark) => DCFCore.canonicalizeStoredDcImageUrl(bookmark?.sourceUrl))
+    .filter(Boolean)
+    .sort()
+    .join("\n");
+}
+
+function contentStateSignature(rawState) {
+  const view = publicState(rawState);
+  delete view.revision;
+  return JSON.stringify(view);
+}
+
+// 디시 탭의 content.js가 쓰는 값이 바뀐 경우에만 REFRESH_STATE를 보낸다.
+// - publicState(필터·문구·강조·말머리·버블 크기·말머리 필터 불투명도 등)
+// - 버블 이미지(GET_BUBBLE_APPEARANCE로 다시 읽음)
+// - 이미지 북마크 원본 주소 목록(새로 읽을 때 이미지 북마크 버튼 상태를 다시 맞춤)
+// 게시물 북마크·폴더, 이미지 폴더 이동·이름·흐림 설정, revision만 바뀐 경우는 제외한다.
+function stateChangeNeedsRefresh(oldRaw, newRaw) {
+  if (!newRaw) return false;
+  if (!oldRaw) return true;
+  return (
+    sanitizeBubbleImageDataUrl(oldRaw?.settings?.bubbleImageDataUrl) !==
+      sanitizeBubbleImageDataUrl(newRaw?.settings?.bubbleImageDataUrl) ||
+    imageSourceSignature(oldRaw) !== imageSourceSignature(newRaw) ||
+    contentStateSignature(oldRaw) !== contentStateSignature(newRaw)
+  );
 }
 
 async function broadcastStateRefresh() {
@@ -947,6 +1290,34 @@ async function broadcastStateRefresh() {
       .filter((tab) => Number.isInteger(tab.id))
       .map((tab) => chrome.tabs.sendMessage(tab.id, { type: "REFRESH_STATE" }))
   );
+}
+
+// 어떤 이미지 북마크도 가리키지 않는 Cache Storage 파일을 정리한다.
+// 저장 중인 파일과 겹치지 않도록 상태 변경 큐 안에서 실행하고, 하루에 한 번만 돈다.
+async function collectImageGarbage({ force = false, now = Date.now() } = {}) {
+  if (!force) {
+    const last = Number(await readSessionValue(IMAGE_GC_KEY));
+    if (Number.isFinite(last) && last <= now && now - last < IMAGE_GC_INTERVAL) {
+      return 0;
+    }
+  }
+  const removed = await enqueueStateTask(async () => {
+    const stored = await chrome.storage.local.get(STATE_KEY);
+    // 상태를 읽지 못했으면 아무 파일도 지우지 않는다.
+    if (!stored[STATE_KEY]) return 0;
+    const state = sanitizeState(stored[STATE_KEY]);
+    return DCFImageStore.removeUnreferenced(
+      state.imageBookmarks.map((bookmark) => bookmark.id)
+    );
+  });
+  await writeSessionValue(IMAGE_GC_KEY, now);
+  return removed;
+}
+
+function scheduleImageGarbageCollection() {
+  collectImageGarbage().catch((error) => {
+    console.warn("나나툴: 이미지 캐시 정리 실패", errorMessage(error));
+  });
 }
 
 function updateSettingsDraft(draft, patch) {
@@ -1035,8 +1406,21 @@ function imageBookmarkPayload(input) {
 
 async function handleMessage(message, sender) {
   assert(message && typeof message.type === "string", "잘못된 요청입니다.");
+  if (isEmbeddedPage(sender)) {
+    // 웹 접근 가능한 빠른 설정 화면은 실제로 쓰는 요청만 허용한다.
+    assert(
+      EMBEDDED_MESSAGE_TYPES.has(message.type),
+      "나나툴 빠른 설정 화면에서는 사용할 수 없는 요청입니다."
+    );
+  }
 
   switch (message.type) {
+    case "GET_EMBED_CONTEXT": {
+      const tab = embeddedHostTab(sender);
+      assert(tab, "빠른 설정이 열린 디시인사이드 탭을 확인하지 못했습니다.");
+      return { tab };
+    }
+
     case "GET_RELEASE_UPDATE_STATUS": {
       assert(
         isExtensionPage(sender),
@@ -1123,8 +1507,11 @@ async function handleMessage(message, sender) {
         isExtensionPage(sender),
         "확장프로그램 화면에서만 설정할 수 있습니다."
       );
-      const patch =
+      const rawPatch =
         message.patch && typeof message.patch === "object" ? message.patch : {};
+      const patch = isEmbeddedPage(sender)
+        ? embeddedSettingsPatch(rawPatch)
+        : rawPatch;
       const { state } = await mutateState((draft) => {
         updateSettingsDraft(draft, patch);
       });
@@ -1589,7 +1976,7 @@ async function handleMessage(message, sender) {
           "사용자가 직접 누른 경우에만 이미지를 저장할 수 있습니다."
         );
       }
-      assertImageSaveRate(sender);
+      await assertImageSaveRate(sender);
       const payload = imageBookmarkPayload(message.bookmark);
       const beforeFetch = await readState();
       const existingBeforeFetch = beforeFetch.imageBookmarks.find(
@@ -1707,15 +2094,35 @@ async function handleMessage(message, sender) {
           : { deleted: false };
       }
 
-      await DCFImageStore.remove(target.id);
-      const { state } = await mutateState((draft) => {
-        draft.imageBookmarks = draft.imageBookmarks.filter(
-          (bookmark) => bookmark.id !== target.id
-        );
-      });
+      // 상태에서 먼저 지운 뒤(저장 성공 후) 같은 큐 안에서 파일을 지운다.
+      // 파일 삭제가 실패해도 남은 파일은 이미지 캐시 정리에서 회수된다.
+      const { state, result } = await mutateState(
+        (draft) => {
+          const deleted = draft.imageBookmarks.some(
+            (bookmark) => bookmark.id === target.id
+          );
+          draft.imageBookmarks = draft.imageBookmarks.filter(
+            (bookmark) => bookmark.id !== target.id
+          );
+          return { deleted };
+        },
+        {
+          afterCommit: async (_state, outcome) => {
+            if (!outcome?.deleted) return;
+            try {
+              await DCFImageStore.remove(target.id);
+            } catch (error) {
+              console.warn(
+                "나나툴: 이미지 파일 삭제 실패(다음 캐시 정리 때 회수)",
+                errorMessage(error)
+              );
+            }
+          }
+        }
+      );
       return isExtensionPage(sender)
-        ? { state, deleted: true, id: target.id }
-        : { deleted: true, id: target.id };
+        ? { state, deleted: result.deleted, id: target.id }
+        : { deleted: result.deleted, id: target.id };
     }
 
     case "MOVE_IMAGE_BOOKMARK": {
@@ -1916,17 +2323,20 @@ async function handleMessage(message, sender) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleMessage(message, sender)
     .then((payload) => sendResponse({ ok: true, ...payload }))
-    .catch((error) =>
-      sendResponse({
-        ok: false,
-        error: errorMessage(error)
-      })
-    );
+    .catch((error) => {
+      const text = userFacingErrorMessage(error);
+      if (text !== errorMessage(error)) {
+        console.warn("나나툴: 요청 처리 실패", errorMessage(error));
+      }
+      sendResponse({ ok: false, error: text });
+    });
   return true;
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local" || !changes[STATE_KEY]?.newValue) return;
+  const change = changes[STATE_KEY];
+  if (areaName !== "local" || !change?.newValue) return;
+  if (!stateChangeNeedsRefresh(change.oldValue, change.newValue)) return;
   broadcastStateRefresh().catch((error) => {
     console.warn("나나툴: 설정 전파 실패", errorMessage(error));
   });
@@ -1952,7 +2362,10 @@ function initialize() {
 
 chrome.runtime.onInstalled.addListener(() => {
   initialize()
-    .then(() => checkReleaseUpdate({ force: true }))
+    .then(() => {
+      scheduleImageGarbageCollection();
+      return checkReleaseUpdate({ force: true });
+    })
     .catch((error) => {
       console.error("나나툴 초기화 실패", error);
     });
@@ -1960,7 +2373,10 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(() => {
   initialize()
-    .then(() => checkReleaseUpdate())
+    .then(() => {
+      scheduleImageGarbageCollection();
+      return checkReleaseUpdate();
+    })
     .catch((error) => {
       console.error("나나툴 시작 처리 실패", error);
     });
@@ -1968,6 +2384,7 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm?.name !== RELEASE_CHECK_ALARM) return;
+  scheduleImageGarbageCollection();
   checkReleaseUpdate({ force: true }).catch((error) => {
     console.warn("나나툴: 릴리스 확인 실패", errorMessage(error));
   });
@@ -1977,6 +2394,7 @@ globalThis.DCFBackgroundTest = Object.freeze({
   handleMessage,
   isDcSender,
   isExtensionPage,
+  embeddedHostTab,
   updateSettingsDraft,
   sanitizeBubblePosition,
   sanitizeGallogId,
@@ -1986,18 +2404,31 @@ globalThis.DCFBackgroundTest = Object.freeze({
   parseNumericVersion,
   normalizeReleaseVersion,
   compareReleaseVersions,
+  releaseRetryAfter,
   sanitizeReleaseUrl,
   normalizeReleaseStatus,
   releaseStatusIsStale,
   checkReleaseUpdate,
   initialize,
+  readState,
+  mutateState,
+  stateChangeNeedsRefresh,
+  extractRoleSections,
+  collectImageGarbage,
   sniffImageMime,
   assertSafeSvgImage,
   profileFetchTimeouts: Object.freeze({
     profile: PROFILE_FETCH_TIMEOUT,
     managed: MANAGED_GALLERY_FETCH_TIMEOUT,
     role: ROLE_FETCH_TIMEOUT
-  })
+  }),
+  roleFetchLimits: Object.freeze({
+    maxPages: MAX_ROLE_PAGES,
+    concurrency: ROLE_FETCH_CONCURRENCY,
+    cacheTtl: ROLE_PAGE_CACHE_TTL,
+    failureTtl: ROLE_PAGE_FAILURE_TTL
+  }),
+  profileFailureTtl: PROFILE_FAILURE_TTL
 });
 
 initialize().catch((error) => {

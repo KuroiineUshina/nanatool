@@ -16,7 +16,7 @@ test("사용자 화면의 브랜드명을 나나툴로 통일한다", () => {
   assert.equal(manifest.name, "나나툴");
   assert.equal(manifest.short_name, "나나툴");
   assert.equal(manifest.action.default_title, "나나툴");
-  assert.equal(manifest.version, "1.0.0");
+  assert.equal(manifest.version, "1.0.1");
   assert.equal(manifest.minimum_chrome_version, "105");
 
   assert.match(read("popup.html"), /<p class="eyebrow">Nana Tool<\/p>/);
