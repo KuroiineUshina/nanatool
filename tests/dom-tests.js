@@ -525,6 +525,21 @@ test("갤로그 HTML에서 프로필 사진의 갱신 주소를 읽음", () => {
   );
 });
 
+test("갤로그의 게시물(바뀐 표기)·게시글(예전 표기) 개수를 모두 읽음", () => {
+  const now = DCFContentTest.parseGallogProfile(
+    '<div class="galler_info"><strong class="nick_name">테스트사용자</strong></div>' +
+      '<div class="gallog_cont"><h2 class="tit">게시물<span class="num">(8,531)</span></h2>' +
+      '<h2 class="tit">댓글<span class="num">(19,797)</span></h2></div>',
+    "tester"
+  );
+  const old = DCFContentTest.parseGallogProfile(
+    '<div class="galler_info"><strong class="nick_name">테스트사용자</strong></div>' +
+      '<h2 class="tit">게시글 <span class="num">120</span></h2><h2 class="tit">댓글 <span class="num">360</span></h2>',
+    "tester"
+  );
+  return now.posts === 8531 && now.comments === 19797 && old.posts === 120 && old.comments === 360;
+});
+
 test("현재 명함은 저장된 꼬리말 CSS를 보존하고 값만 채움", () => {
   const source =
     '<table data-nanatool-profile-card data-nanatool-profile-layout="template-v5" style="width:auto;max-width:456px;background-color:transparent"><tbody><tr><td style="padding:7px"><img data-nanatool-character src="{{캐릭터이미지}}"><a data-nanatool-gallog>{{닉네임}}</a><strong>{{게시글수}}</strong></td></tr><tr data-nanatool-managed-section><td><div data-nanatool-managed-galleries><a data-nanatool-managed-gallery-template style="font-size:13px"><img data-nanatool-managed-gallery-badge><span data-nanatool-managed-gallery-role>운영</span><span data-nanatool-managed-gallery-name>갤러리</span></a></div></td></tr></tbody></table>';

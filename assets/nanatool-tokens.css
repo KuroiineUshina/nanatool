@@ -1,0 +1,112 @@
+/*
+ * 나나툴 디자인 토큰 v2 — 원 UI(Samsung One UI 6~7)
+ * 기준 문서: nanatool-ui-design-spec.md v2 (값은 문서와 같게 유지)
+ * 테마 전환: 각 화면 스크립트가 <html data-theme="light|dark">를 정하고,
+ * 스크립트가 없거나 아직 정하지 않았을 때는 prefers-color-scheme을 따른다.
+ * content.css는 콘텐츠 스크립트라 이 파일을 공유하지 못하므로 같은 값을 따로 복사해 쓴다.
+ */
+:root {
+  color-scheme: light;
+
+  /* 면 */
+  --nt-bg: #f2f2f2;
+  --nt-surface: #fcfcfc;
+  --nt-surface-2: #f2f2f2;
+  --nt-fill: #e9e9e9;
+  --nt-line: #e3e3e3;
+
+  /* 눌림·가리킴 오버레이 (축소 없이 옅게 어두워짐) */
+  --nt-pressed: rgba(0, 0, 0, 0.08);
+  --nt-hover: rgba(0, 0, 0, 0.04);
+
+  /* 글자 */
+  --nt-text: #111111;
+  --nt-text-2: #3d3d3d;
+  --nt-text-3: #8a8a8a;
+  --nt-text-4: #bdbdbd;
+
+  /* 강조 */
+  --nt-primary: #3e91ff;
+  --nt-primary-pressed: #2b7ce8;
+  --nt-primary-weak: rgba(62, 145, 255, 0.14);
+  --nt-primary-weak-text: #1c6fe3;
+  --nt-on-primary: #ffffff;
+  --nt-danger: #e5413c;
+  --nt-danger-weak: rgba(229, 65, 60, 0.12);
+
+  /* 부품 */
+  --nt-switch-off: var(--nt-text-4);
+  --nt-switch-knob-on: #ffffff;
+  --nt-slider-rest: var(--nt-fill);
+  --nt-toast-bg: #ededed;
+  --nt-toast-text: #111111;
+
+  /* 그림자: 카드는 평평, 떠 있는 요소만 */
+  --nt-shadow: none;
+  --nt-shadow-float: 0 4px 16px rgba(0, 0, 0, 0.14);
+
+  /* 모양 */
+  --nt-radius-card: 26px;
+  --nt-radius-card-compact: 22px;
+  --nt-radius-control: 16px;
+  --nt-radius-chip: 999px;
+  --nt-radius-button: 999px;
+  --nt-radius-toast: 999px;
+  --nt-radius-sheet: 26px;
+
+  /* 글자체·움직임 */
+  --nt-font: "Pretendard", "Pretendard Variable", sans-serif;
+  --nt-duration: 0.2s;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --nt-bg: #000000;
+    --nt-surface: #171717;
+    --nt-surface-2: #252525;
+    --nt-fill: #2c2c2c;
+    --nt-line: #2a2a2a;
+    --nt-pressed: rgba(255, 255, 255, 0.1);
+    --nt-hover: rgba(255, 255, 255, 0.05);
+    --nt-text: #fafafa;
+    --nt-text-2: #cfcfcf;
+    --nt-text-3: #8c8c8c;
+    --nt-text-4: #5a5a5a;
+    --nt-primary: #5ba4ff;
+    --nt-primary-pressed: #3e91ff;
+    --nt-primary-weak: rgba(91, 164, 255, 0.18);
+    --nt-primary-weak-text: #8cc0ff;
+    --nt-danger: #ff6b66;
+    --nt-danger-weak: rgba(255, 107, 102, 0.18);
+    --nt-slider-rest: #3a3a3a;
+    --nt-toast-bg: #2e2e2e;
+    --nt-toast-text: #fafafa;
+    --nt-shadow-float: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px #2a2a2a;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --nt-bg: #000000;
+  --nt-surface: #171717;
+  --nt-surface-2: #252525;
+  --nt-fill: #2c2c2c;
+  --nt-line: #2a2a2a;
+  --nt-pressed: rgba(255, 255, 255, 0.1);
+  --nt-hover: rgba(255, 255, 255, 0.05);
+  --nt-text: #fafafa;
+  --nt-text-2: #cfcfcf;
+  --nt-text-3: #8c8c8c;
+  --nt-text-4: #5a5a5a;
+  --nt-primary: #5ba4ff;
+  --nt-primary-pressed: #3e91ff;
+  --nt-primary-weak: rgba(91, 164, 255, 0.18);
+  --nt-primary-weak-text: #8cc0ff;
+  --nt-danger: #ff6b66;
+  --nt-danger-weak: rgba(255, 107, 102, 0.18);
+  --nt-slider-rest: #3a3a3a;
+  --nt-toast-bg: #2e2e2e;
+  --nt-toast-text: #fafafa;
+  --nt-shadow-float: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px #2a2a2a;
+}

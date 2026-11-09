@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>나나툴 개인정보처리방침</title>
     <link rel="stylesheet" href="assets/pretendard-local.css">
+    <link rel="stylesheet" href="assets/nanatool-tokens.css">
     <style>
+      /* 원 UI 글 읽기 화면 — 색은 assets/nanatool-tokens.css의 --nt-* 토큰 */
       :root {
-        color-scheme: light dark;
-        font-family: Pretendard, "Pretendard KOR", sans-serif;
-        color: #171927;
-        background: #f5f6fa;
+        font-family: "Pretendard", "Pretendard Variable", sans-serif;
+        color: var(--nt-text);
+        background: var(--nt-bg);
       }
 
       * { box-sizing: border-box; }
@@ -18,39 +19,70 @@
       body {
         margin: 0;
         min-width: 320px;
+        background: var(--nt-bg);
+        color: var(--nt-text-2);
         line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
       }
 
       main {
-        width: min(760px, calc(100% - 40px));
-        margin: 48px auto;
-        padding: 40px;
-        border-radius: 20px;
-        background: #ffffff;
+        width: min(752px, calc(100% - 32px));
+        margin: 72px auto 80px;
+        padding: 40px 32px 44px;
+        border-radius: var(--nt-radius-card);
+        background: var(--nt-surface);
       }
 
-      h1, h2 { line-height: 1.3; }
-      h1 { margin: 0 0 8px; font-size: 30px; }
-      h2 { margin: 34px 0 10px; font-size: 19px; }
-      p, li { font-size: 15px; }
-      .meta { margin: 0 0 28px; color: #666b7d; }
-      code { font-family: Consolas, monospace; font-size: 0.92em; }
-
-      @media (prefers-color-scheme: dark) {
-        :root { color: #f2f3f8; background: #151722; }
-        main { background: #202330; }
-        .meta { color: #b6bac9; }
+      h1, h2 { color: var(--nt-text); }
+      h1 { margin: 0 0 6px; font-size: 32px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; }
+      h2 {
+        margin: 36px 0 10px;
+        padding-top: 28px;
+        font-size: 19px;
+        font-weight: 600;
+        line-height: 1.4;
+        box-shadow: inset 0 1px 0 var(--nt-line);
+      }
+      p, li { font-size: 16px; }
+      p { margin: 0 0 14px; }
+      ul { margin: 0 0 14px; padding-left: 22px; }
+      li { margin: 6px 0; padding-left: 2px; }
+      li::marker { color: var(--nt-text-4); }
+      .meta { margin: 0 0 28px; color: var(--nt-text-3); font-size: 14px; line-height: 1.5; }
+      code {
+        padding: 1px 6px;
+        border-radius: 6px;
+        background: var(--nt-surface-2);
+        color: var(--nt-text);
+        font-family: Consolas, monospace;
+        font-size: 0.88em;
+      }
+      a {
+        color: var(--nt-primary);
+        font-weight: 600;
+        text-decoration: none;
+      }
+      a:hover { text-decoration: underline; text-underline-offset: 3px; }
+      a:focus-visible {
+        outline: 2px solid var(--nt-primary);
+        outline-offset: 2px;
+        border-radius: 4px;
       }
 
       @media (max-width: 600px) {
-        main { width: 100%; margin: 0; padding: 28px 20px; border-radius: 0; }
+        main { width: calc(100% - 24px); margin: 24px auto 40px; padding: 28px 20px 32px; border-radius: var(--nt-radius-card-compact); }
+        h1 { font-size: 26px; }
+        h2 { margin-top: 28px; padding-top: 24px; font-size: 18px; }
+        p, li { font-size: 15px; }
       }
     </style>
   </head>
   <body>
     <main>
       <h1>나나툴 개인정보처리방침</h1>
-      <p class="meta">시행일 2026년 11월 9일 · 적용 버전 1.0.1</p>
+      <p class="meta">시행일 2026년 11월 10일 · 적용 버전 1.1.0</p>
 
       <p>나나툴은 디시인사이드에서 동작하는 브라우저 확장프로그램입니다. 개발자 서버, 사용자 계정, 광고, 분석 도구, 추적 도구 또는 클라우드 동기화를 사용하지 않습니다.</p>
 

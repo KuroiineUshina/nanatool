@@ -13,6 +13,76 @@ html.dcf-hide-anonymous-comments .dcf-anonymous-comment {
   display: none !important;
 }
 
+/*
+ * 나나툴 디자인 토큰 v2 — 원 UI(nanatool-ui-design-spec.md)
+ * 콘텐츠 스크립트는 확장 페이지의 토큰 파일을 불러올 수 없어서 같은 --nt-* 값을
+ * 나나툴이 넣은 요소([data-dcf-owned], 버블, 버블 패널)에만 정의한다.
+ * 디시 요소에는 퍼지지 않는다. 다크는 기존 방식 그대로 디시 다크 스타일시트
+ * (#css-darkmode)와 버블·패널의 data-theme을 따른다.
+ */
+[data-dcf-owned],
+#dcf-floating-bubble,
+#dcf-floating-panel {
+  --nt-bg: #F2F2F2;
+  --nt-bg-rgb: 242, 242, 242;
+  --nt-surface: #FCFCFC;
+  --nt-surface-rgb: 252, 252, 252;
+  --nt-surface-2: #F2F2F2;
+  --nt-fill: #E9E9E9;
+  --nt-slider-rest: #E9E9E9;
+  --nt-line: #E3E3E3;
+  --nt-text: #111111;
+  --nt-text-2: #3D3D3D;
+  --nt-text-3: #8A8A8A;
+  --nt-text-4: #BDBDBD;
+  --nt-primary: #3E91FF;
+  --nt-primary-pressed: #2B7CE8;
+  --nt-primary-weak: rgba(62, 145, 255, 0.14);
+  --nt-primary-weak-text: #1C6FE3;
+  --nt-danger: #E5413C;
+  --nt-danger-weak: rgba(229, 65, 60, 0.12);
+  --nt-hover: rgba(0, 0, 0, 0.04);
+  --nt-pressed: rgba(0, 0, 0, 0.08);
+  --nt-switch-off: #BDBDBD;
+  --nt-switch-knob-on: #FFFFFF;
+  --nt-shadow-float: 0 4px 16px rgba(0, 0, 0, 0.14);
+  --nt-toast-bg: #EDEDED;
+  --nt-toast-text: #111111;
+  --nt-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A8A8A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E");
+}
+
+html:has(#css-darkmode) [data-dcf-owned],
+#dcf-floating-bubble[data-theme="dark"],
+#dcf-floating-panel[data-theme="dark"] {
+  --nt-bg: #000000;
+  --nt-bg-rgb: 0, 0, 0;
+  --nt-surface: #171717;
+  --nt-surface-rgb: 23, 23, 23;
+  --nt-surface-2: #252525;
+  --nt-fill: #2C2C2C;
+  --nt-slider-rest: #3A3A3A;
+  --nt-line: #2A2A2A;
+  --nt-text: #FAFAFA;
+  --nt-text-2: #CFCFCF;
+  --nt-text-3: #8C8C8C;
+  --nt-text-4: #5A5A5A;
+  --nt-primary: #5BA4FF;
+  --nt-primary-pressed: #3E91FF;
+  --nt-primary-weak: rgba(91, 164, 255, 0.18);
+  --nt-primary-weak-text: #8CC0FF;
+  --nt-danger: #FF6B66;
+  --nt-danger-weak: rgba(255, 107, 102, 0.18);
+  --nt-hover: rgba(255, 255, 255, 0.05);
+  --nt-pressed: rgba(255, 255, 255, 0.1);
+  --nt-switch-off: #5A5A5A;
+  --nt-switch-knob-on: #FFFFFF;
+  --nt-shadow-float: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px #2A2A2A;
+  --nt-toast-bg: #2E2E2E;
+  --nt-toast-text: #FAFAFA;
+  --nt-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238C8C8C' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E");
+}
+
+/* 말머리 탭 오른쪽 설정 아이콘(동그란 아이콘 버튼) */
 #dcf-subject-filter-slot {
   align-items: center !important;
   box-sizing: border-box !important;
@@ -30,51 +100,91 @@ html.dcf-hide-anonymous-comments .dcf-anonymous-comment {
   align-items: center !important;
   appearance: none !important;
   background: transparent !important;
-  border: 1px solid transparent !important;
-  border-radius: 4px !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  box-shadow: none !important;
   box-sizing: border-box !important;
-  color: #3f467f !important;
+  color: var(--nt-text-3) !important;
   cursor: pointer !important;
   display: inline-flex !important;
-  font: 700 15px/1 "Pretendard", "Pretendard Variable", sans-serif !important;
+  font: 500 15px/1 "Pretendard", "Pretendard Variable", sans-serif !important;
   height: 24px !important;
   justify-content: center !important;
   margin: 0 !important;
   min-height: 24px !important;
   min-width: 24px !important;
+  outline: none !important;
   padding: 0 !important;
   text-decoration: none !important;
+  transition: background-color 0.15s ease, color 0.15s ease !important;
   width: 24px !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
-#dcf-subject-filter-button:hover,
-#dcf-subject-filter-button:focus-visible,
+#dcf-subject-filter-button:hover {
+  background: var(--nt-hover) !important;
+  color: var(--nt-text-2) !important;
+}
+
+#dcf-subject-filter-button:active {
+  background: var(--nt-pressed) !important;
+}
+
 #dcf-subject-filter-button[aria-expanded="true"] {
-  background: #f1f2f8 !important;
-  border-color: #b8bcd2 !important;
-  outline: none !important;
+  background: var(--nt-primary-weak) !important;
+  color: var(--nt-primary-weak-text) !important;
 }
 
+#dcf-subject-filter-button:focus-visible {
+  outline: 2px solid var(--nt-primary) !important;
+  outline-offset: 2px !important;
+}
+
+/* 말머리 필터 창: 원 UI 시트(radius 26) + 둥근 카드 그룹(그림자 없음) */
 #dcf-subject-filter-panel {
   --dcf-subject-filter-panel-opacity: 1;
-  background: #ffffff !important;
-  border: 1px solid #cfd2df !important;
-  border-radius: 8px !important;
-  box-shadow: 0 10px 30px rgba(28, 31, 55, 0.2) !important;
+  --dcf-card: rgba(
+    var(--nt-surface-rgb),
+    var(--dcf-subject-filter-panel-opacity, 1)
+  );
+  background-color: rgba(
+    var(--nt-bg-rgb),
+    var(--dcf-subject-filter-panel-opacity, 1)
+  ) !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 26px !important;
+  box-shadow: var(--nt-shadow-float) !important;
   box-sizing: border-box !important;
-  color: #262a42 !important;
+  color: var(--nt-text) !important;
+  color-scheme: light !important;
   display: block !important;
-  font: 12px/1.45 "Pretendard", "Pretendard Variable", sans-serif !important;
+  font: 400 14px/1.4 "Pretendard", "Pretendard Variable", sans-serif !important;
   height: auto !important;
+  letter-spacing: 0 !important;
   margin: 0 !important;
   max-height: min(560px, calc(100vh - 16px)) !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  padding: 0 !important;
+  overscroll-behavior: contain !important;
+  padding: 0 10px 10px !important;
   position: fixed !important;
+  scrollbar-width: thin !important;
   text-align: left !important;
-  width: min(304px, calc(100vw - 16px)) !important;
+  width: min(320px, calc(100vw - 16px)) !important;
   z-index: 2147483646 !important;
+  /* 불투명도를 낮췄을 때만 비례해서 흐리게 해 글자를 읽을 수 있게 한다(100%면 0px). */
+  -webkit-backdrop-filter: blur(
+    calc((1 - var(--dcf-subject-filter-panel-opacity, 1)) * 8px)
+  ) !important;
+  backdrop-filter: blur(
+    calc((1 - var(--dcf-subject-filter-panel-opacity, 1)) * 8px)
+  ) !important;
+}
+
+html:has(#css-darkmode) #dcf-subject-filter-panel {
+  color-scheme: dark !important;
 }
 
 #dcf-subject-filter-panel[hidden] {
@@ -86,429 +196,593 @@ html.dcf-hide-anonymous-comments .dcf-anonymous-comment {
   box-sizing: border-box !important;
 }
 
-.dcf-subject-filter-heading {
+/* 맨 위 제목 20px/600 + 오른쪽 닫기 */
+#dcf-subject-filter-panel .dcf-subject-filter-heading {
   align-items: center !important;
-  border-bottom: 1px solid #eceef4 !important;
+  background: transparent !important;
   display: flex !important;
+  gap: 8px !important;
   justify-content: space-between !important;
   margin: 0 !important;
-  min-height: 38px !important;
-  padding: 8px 10px 8px 12px !important;
+  min-height: 42px !important;
+  padding: 8px 2px 2px 20px !important;
 }
 
-.dcf-subject-filter-heading strong {
-  color: #20243d !important;
-  font: 700 13px/1.3 "Pretendard", "Pretendard Variable", sans-serif !important;
+#dcf-subject-filter-panel .dcf-subject-filter-heading strong {
+  color: var(--nt-text) !important;
+  font: 600 20px/1.3 "Pretendard", "Pretendard Variable", sans-serif !important;
 }
 
-.dcf-subject-filter-close {
+#dcf-subject-filter-panel .dcf-subject-filter-close {
+  align-items: center !important;
   appearance: none !important;
   background: transparent !important;
-  border: 0 !important;
-  border-radius: 4px !important;
-  color: #6e7288 !important;
+  border-radius: 50% !important;
+  box-shadow: none !important;
+  color: var(--nt-text-2) !important;
   cursor: pointer !important;
-  font: 400 20px/1 "Pretendard", "Pretendard Variable", sans-serif !important;
-  height: 24px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  width: 24px !important;
-}
-
-.dcf-subject-filter-close:hover,
-.dcf-subject-filter-close:focus-visible {
-  background: #f0f1f6 !important;
-  color: #252943 !important;
-  outline: none !important;
-}
-
-.dcf-subject-filter-mode-row {
-  align-items: center !important;
-  background: #f8f8fb !important;
-  border-bottom: 1px solid #eceef4 !important;
-  display: grid !important;
-  gap: 7px !important;
-  grid-template-columns: 1fr auto !important;
-  margin: 0 !important;
-  min-height: 42px !important;
-  padding: 9px 12px !important;
-}
-
-.dcf-subject-filter-mode-row > span:first-child {
-  color: #5f6378 !important;
-  font-weight: 700 !important;
-}
-
-.dcf-subject-write-settings {
-  border-bottom: 1px solid #eceef4 !important;
-  display: grid !important;
-  gap: 8px !important;
-  margin: 0 !important;
-  padding: 10px 12px 11px !important;
-}
-
-.dcf-subject-write-settings > strong {
-  color: #20243d !important;
-  font-size: 12px !important;
-  line-height: 1.3 !important;
-}
-
-.dcf-subject-write-follow {
-  align-items: center !important;
-  color: #4f536b !important;
-  cursor: pointer !important;
-  display: flex !important;
-  gap: 7px !important;
-  margin: 0 !important;
-}
-
-.dcf-subject-write-follow input {
-  accent-color: #4b4f9c !important;
-  height: 14px !important;
-  margin: 0 !important;
-  width: 14px !important;
-}
-
-.dcf-subject-write-default {
-  align-items: center !important;
-  display: grid !important;
-  gap: 8px !important;
-  grid-template-columns: 72px minmax(0, 1fr) !important;
-  margin: 0 !important;
-}
-
-.dcf-subject-write-default > span {
-  color: #5f6378 !important;
-  font-weight: 700 !important;
-}
-
-#dcf-subject-write-default {
-  appearance: auto !important;
-  background: rgba(255, 255, 255, 0.72) !important;
-  border: 1px solid #d7d9e4 !important;
-  border-radius: 7px !important;
-  color: #30354f !important;
-  font: 500 11px/1.3 "Pretendard", "Pretendard Variable", sans-serif !important;
-  height: 30px !important;
-  margin: 0 !important;
-  min-width: 0 !important;
-  padding: 0 7px !important;
-  width: 100% !important;
-}
-
-.dcf-subject-write-settings [data-dcf-write-subject-status] {
-  color: #777b90 !important;
-  font-size: 10px !important;
-  line-height: 1.3 !important;
-}
-
-.dcf-subject-write-settings :disabled {
-  cursor: wait !important;
-  opacity: 0.58 !important;
-}
-
-.dcf-subject-filter-mode-row [data-dcf-mode] {
-  align-items: center !important;
-  color: #979aab !important;
   display: inline-flex !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  height: 20px !important;
-  line-height: 1 !important;
+  flex: 0 0 auto !important;
+  font: 400 22px/1 "Pretendard", "Pretendard Variable", sans-serif !important;
+  height: 30px !important;
+  justify-content: center !important;
   margin: 0 !important;
+  outline: none !important;
+  padding: 0 0 2px !important;
+  transition: background-color 0.15s ease !important;
+  width: 30px !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-close:hover {
+  background: var(--nt-hover) !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-close:active {
+  background: var(--nt-pressed) !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-close:focus-visible {
+  outline: 2px solid var(--nt-primary) !important;
+  outline-offset: 0 !important;
+}
+
+/* 말머리 필터 저장 상태: 제목 줄 오른쪽에 잠깐 보이고 평소에는 자리를 차지하지 않는다. */
+#dcf-subject-filter-panel .dcf-subject-filter-status {
+  color: var(--nt-primary) !important;
+  font: 500 13px/1.3 "Pretendard", "Pretendard Variable", sans-serif !important;
+  margin: 0 !important;
+  max-width: 120px !important;
+  overflow: hidden !important;
   padding: 0 !important;
+  position: absolute !important;
+  right: 48px !important;
+  text-align: right !important;
+  text-overflow: ellipsis !important;
+  top: 17px !important;
   white-space: nowrap !important;
 }
 
-.dcf-subject-filter-mode-controls {
+#dcf-subject-filter-panel .dcf-subject-filter-status:empty {
+  display: none !important;
+}
+
+/* 카드 1: 체크 항목 행 + 말머리 선택 칩 */
+#dcf-subject-filter-panel .dcf-subject-filter-mode-row {
+  align-items: center !important;
+  background: var(--dcf-card) !important;
+  border-radius: 22px 22px 0 0 !important;
+  display: grid !important;
+  gap: 8px !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  margin: 0 !important;
+  min-height: 40px !important;
+  padding: 8px 16px 0 20px !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-mode-row > span:first-child {
+  color: var(--nt-text) !important;
+  font: 400 17px/1.3 "Pretendard", "Pretendard Variable", sans-serif !important;
+  white-space: nowrap !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-mode-controls {
   align-items: center !important;
   display: inline-flex !important;
-  gap: 7px !important;
-  height: 20px !important;
+  gap: 8px !important;
+  height: 24px !important;
   justify-content: flex-end !important;
   line-height: 1 !important;
   margin: 0 !important;
   padding: 0 !important;
 }
 
-#dcf-subject-filter-panel[data-mode="include"] [data-dcf-mode="include"],
-#dcf-subject-filter-panel[data-mode="exclude"] [data-dcf-mode="exclude"] {
-  color: #363b86 !important;
-}
-
-.dcf-subject-filter-switch {
+#dcf-subject-filter-panel .dcf-subject-filter-mode-row [data-dcf-mode] {
   align-items: center !important;
-  cursor: pointer !important;
+  color: var(--nt-text-3) !important;
   display: inline-flex !important;
+  font: 500 14px/1 "Pretendard", "Pretendard Variable", sans-serif !important;
   height: 20px !important;
   margin: 0 !important;
-  position: relative !important;
-  width: 35px !important;
+  padding: 0 !important;
+  transition: color 0.2s ease !important;
+  white-space: nowrap !important;
 }
 
-.dcf-subject-filter-switch input {
-  height: 1px !important;
-  margin: -1px !important;
-  opacity: 0 !important;
+/* 현재 고른 방식은 강조색 */
+#dcf-subject-filter-panel[data-mode="include"] [data-dcf-mode="include"],
+#dcf-subject-filter-panel[data-mode="exclude"] [data-dcf-mode="exclude"] {
+  color: var(--nt-primary) !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-list {
+  align-content: flex-start !important;
+  background: var(--dcf-card) !important;
+  border-radius: 0 0 22px 22px !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  max-height: 170px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  padding: 6px 16px 12px 20px !important;
+  scrollbar-width: thin !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-list:empty {
+  display: none !important;
+}
+
+/* 선택 칩: 테두리 알약(테두리는 안쪽 그림자로 그려 무테 규칙과 맞춘다). 체크 아이콘 없음 */
+#dcf-subject-filter-panel .dcf-subject-filter-option {
+  align-items: center !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-radius: 999px !important;
+  box-shadow: inset 0 0 0 1px var(--nt-line) !important;
+  color: var(--nt-text-2) !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  flex: 0 1 auto !important;
+  font: 500 14px/1.2 "Pretendard", "Pretendard Variable", sans-serif !important;
+  gap: 0 !important;
+  height: 30px !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
   overflow: hidden !important;
-  position: absolute !important;
+  padding: 0 14px !important;
+  transition: background-color 0.15s ease, color 0.15s ease,
+    box-shadow 0.15s ease !important;
+  user-select: none !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-option:hover {
+  background-image: linear-gradient(var(--nt-hover), var(--nt-hover)) !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-option:active {
+  background-image: linear-gradient(var(--nt-pressed), var(--nt-pressed)) !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-option:has(input:checked) {
+  background-color: var(--nt-primary-weak) !important;
+  box-shadow: inset 0 0 0 1px var(--nt-primary) !important;
+  color: var(--nt-primary-weak-text) !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-option:has(input:disabled) {
+  cursor: wait !important;
+  opacity: 0.5 !important;
+}
+
+/* 체크 상자는 칩 자체가 대신 보여 주므로 1px로 숨기되 클릭·키보드 조작은 그대로 받는다. */
+#dcf-subject-filter-panel .dcf-subject-filter-option input {
+  appearance: none !important;
+  background: none !important;
+  flex: 0 0 auto !important;
+  height: 1px !important;
+  margin: 0 -1px 0 0 !important;
+  opacity: 0 !important;
+  outline: none !important;
+  padding: 0 !important;
   width: 1px !important;
 }
 
-.dcf-subject-filter-switch span {
-  background: #6c72b8 !important;
-  border-radius: 99px !important;
-  display: block !important;
-  height: 20px !important;
-  position: relative !important;
-  transition: background 0.14s ease !important;
-  width: 35px !important;
+#dcf-subject-filter-panel .dcf-subject-filter-option:has(input:focus-visible) {
+  outline: 2px solid var(--nt-primary) !important;
+  outline-offset: 1px !important;
 }
 
-.dcf-subject-filter-switch span::after {
-  background: #ffffff !important;
-  border-radius: 50% !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28) !important;
-  content: "" !important;
-  height: 16px !important;
-  left: 2px !important;
-  position: absolute !important;
-  top: 2px !important;
-  transition: transform 0.14s ease !important;
-  width: 16px !important;
-}
-
-.dcf-subject-filter-switch input:checked + span {
-  background: #b15a68 !important;
-}
-
-.dcf-subject-filter-switch input:checked + span::after {
-  transform: translateX(15px) !important;
-}
-
-.dcf-subject-filter-switch input:focus-visible + span {
-  outline: 2px solid #4b4f9c !important;
-  outline-offset: 2px !important;
-}
-
-.dcf-subject-filter-switch input:disabled + span {
-  cursor: wait !important;
-  opacity: 0.55 !important;
-}
-
-.dcf-subject-filter-list {
-  display: grid !important;
-  gap: 6px !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  margin: 0 !important;
-  max-height: 230px !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  padding: 10px 12px !important;
-}
-
-.dcf-subject-filter-option {
-  align-items: center !important;
-  background: #f7f7fa !important;
-  border: 1px solid #e1e3eb !important;
-  border-radius: 5px !important;
-  color: #3d4159 !important;
-  cursor: pointer !important;
-  display: flex !important;
-  gap: 6px !important;
-  margin: 0 !important;
-  min-height: 30px !important;
-  overflow: hidden !important;
-  padding: 5px 7px !important;
-}
-
-.dcf-subject-filter-option:has(input:checked) {
-  background: #eef0ff !important;
-  border-color: #7479ba !important;
-  color: #34397f !important;
-  font-weight: 700 !important;
-}
-
-.dcf-subject-filter-option:has(input:disabled) {
-  cursor: wait !important;
-  opacity: 0.58 !important;
-}
-
-.dcf-subject-filter-option input {
-  accent-color: #4b4f9c !important;
-  flex: 0 0 auto !important;
-  height: 14px !important;
-  margin: 0 !important;
-  width: 14px !important;
-}
-
-.dcf-subject-filter-option span {
+#dcf-subject-filter-panel .dcf-subject-filter-option span {
+  min-width: 0 !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
 }
 
-.dcf-subject-filter-empty {
-  color: #777b90 !important;
-  font-size: 11px !important;
-  margin: 0 !important;
-  padding: 18px 12px !important;
-  text-align: center !important;
+/* 켜짐일 때만 왼쪽에 작은 ✓ 글자 */
+#dcf-subject-filter-panel .dcf-subject-filter-option:has(input:checked) span::before {
+  content: "✓" / "" !important;
+  font-weight: 600 !important;
+  margin-right: 4px !important;
 }
 
-.dcf-subject-filter-empty[hidden] {
+#dcf-subject-filter-panel .dcf-subject-filter-empty {
+  background: var(--dcf-card) !important;
+  border-radius: 0 0 22px 22px !important;
+  color: var(--nt-text-3) !important;
+  font: 400 14px/1.4 "Pretendard", "Pretendard Variable", sans-serif !important;
+  margin: 0 !important;
+  padding: 6px 20px 14px !important;
+  text-align: left !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-empty[hidden] {
   display: none !important;
 }
 
-/* 말머리 필터 저장 상태: 저장할 때만 보이고 평소에는 자리를 차지하지 않는다. */
-.dcf-subject-filter-status {
-  color: #777b90 !important;
-  font-size: 10px !important;
-  line-height: 1.3 !important;
+/* 카드 2: 글쓰기 말머리(그룹 소제목 + 행) */
+#dcf-subject-filter-panel .dcf-subject-write-settings {
+  background: transparent !important;
+  display: block !important;
+  margin: 6px 0 0 !important;
+  padding: 0 !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-write-settings > strong {
+  color: var(--nt-text-3) !important;
+  display: block !important;
+  font: 600 14px/1.3 "Pretendard", "Pretendard Variable", sans-serif !important;
   margin: 0 !important;
-  padding: 0 12px 6px !important;
-  text-align: right !important;
+  padding: 0 20px 5px !important;
 }
 
-.dcf-subject-filter-status:empty {
-  display: none !important;
-}
-
-.dcf-subject-filter-footer {
+#dcf-subject-filter-panel .dcf-subject-write-follow {
   align-items: center !important;
-  border-top: 1px solid #eceef4 !important;
+  background: var(--dcf-card) !important;
+  border-radius: 22px 22px 0 0 !important;
+  color: var(--nt-text) !important;
+  cursor: pointer !important;
   display: flex !important;
+  flex-direction: row-reverse !important;
+  font: 400 17px/1.3 "Pretendard", "Pretendard Variable", sans-serif !important;
+  gap: 12px !important;
   justify-content: space-between !important;
   margin: 0 !important;
-  min-height: 38px !important;
-  padding: 7px 10px 7px 12px !important;
+  min-height: 40px !important;
+  padding: 6px 16px 4px 20px !important;
 }
 
-
-.dcf-subject-filter-opacity {
-  align-items: center !important;
-  color: #5f6378 !important;
-  display: grid !important;
+#dcf-subject-filter-panel .dcf-subject-write-follow span {
   flex: 1 1 auto !important;
-  gap: 6px !important;
-  grid-template-columns: auto minmax(72px, 1fr) 34px !important;
-  margin: 0 10px 0 0 !important;
-  max-width: 205px !important;
   min-width: 0 !important;
 }
 
-.dcf-subject-filter-opacity > span,
-.dcf-subject-filter-opacity > output {
-  font-size: 10px !important;
-  font-weight: 700 !important;
-  line-height: 1 !important;
+#dcf-subject-filter-panel .dcf-subject-write-default {
+  align-items: center !important;
+  background: var(--dcf-card) !important;
+  display: grid !important;
+  gap: 12px !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  margin: 0 !important;
+  min-height: 40px !important;
+  padding: 4px 16px 2px 20px !important;
+  position: relative !important;
+}
+
+/* 카드 안 행 사이 구분선: 왼쪽은 행 글자 시작선(20px)에 맞춘다. */
+#dcf-subject-filter-panel .dcf-subject-write-default::before {
+  background: var(--nt-line) !important;
+  content: "" !important;
+  height: 1px !important;
+  left: 20px !important;
+  position: absolute !important;
+  right: 16px !important;
+  top: 0 !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-write-default > span {
+  color: var(--nt-text) !important;
+  font: 400 17px/1.3 "Pretendard", "Pretendard Variable", sans-serif !important;
   white-space: nowrap !important;
 }
 
-.dcf-subject-filter-opacity > output {
-  font-variant-numeric: tabular-nums !important;
-  text-align: right !important;
+/* 현재 값은 강조색으로 보이는 선택상자 */
+#dcf-subject-filter-panel #dcf-subject-write-default {
+  appearance: none !important;
+  background-color: var(--nt-surface-2) !important;
+  background-image: var(--nt-chevron) !important;
+  background-position: right 10px center !important;
+  background-repeat: no-repeat !important;
+  background-size: 16px 16px !important;
+  border-radius: 16px !important;
+  box-shadow: none !important;
+  color: var(--nt-primary) !important;
+  cursor: pointer !important;
+  font: 500 15px/1.3 "Pretendard", "Pretendard Variable", sans-serif !important;
+  height: 32px !important;
+  justify-self: end !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  outline: none !important;
+  overflow: hidden !important;
+  padding: 0 32px 0 14px !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  width: auto !important;
 }
 
-#dcf-subject-filter-opacity {
+#dcf-subject-filter-panel #dcf-subject-write-default option {
+  background: var(--nt-surface) !important;
+  color: var(--nt-text) !important;
+}
+
+#dcf-subject-filter-panel #dcf-subject-write-default:hover:not(:disabled) {
+  background-color: var(--nt-fill) !important;
+}
+
+#dcf-subject-filter-panel #dcf-subject-write-default:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--nt-primary) !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-write-settings [data-dcf-write-subject-status] {
+  background: var(--dcf-card) !important;
+  border-radius: 0 0 22px 22px !important;
+  color: var(--nt-text-3) !important;
+  display: block !important;
+  font: 400 14px/1.3 "Pretendard", "Pretendard Variable", sans-serif !important;
+  margin: 0 !important;
+  padding: 0 20px 9px !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-write-settings :disabled {
+  cursor: wait !important;
+  opacity: 0.5 !important;
+}
+
+/* 카드 3: 불투명도 행 + 아래 가운데 알약 버튼 */
+#dcf-subject-filter-panel .dcf-subject-filter-footer {
+  align-items: center !important;
+  background: transparent !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  margin: 6px 0 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-opacity {
+  align-items: center !important;
+  align-self: stretch !important;
+  background: var(--dcf-card) !important;
+  border-radius: 22px !important;
+  color: var(--nt-text) !important;
+  display: grid !important;
+  gap: 12px !important;
+  grid-template-columns: auto minmax(0, 1fr) 42px !important;
+  margin: 0 !important;
+  max-width: none !important;
+  min-height: 40px !important;
+  min-width: 0 !important;
+  padding: 0 16px 0 20px !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-opacity > span {
+  color: var(--nt-text) !important;
+  font: 400 17px/1.3 "Pretendard", "Pretendard Variable", sans-serif !important;
+  white-space: nowrap !important;
+}
+
+/* 값은 행 오른쪽에 강조색 */
+#dcf-subject-filter-panel .dcf-subject-filter-opacity > output {
+  color: var(--nt-primary) !important;
+  font: 500 15px/1 "Pretendard", "Pretendard Variable", sans-serif !important;
+  font-variant-numeric: tabular-nums !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+#dcf-subject-filter-panel #dcf-subject-filter-opacity {
   appearance: none !important;
-  background: rgba(107, 119, 168, 0.24) !important;
-  border-radius: 999px !important;
+  background: transparent !important;
   cursor: pointer !important;
-  height: 4px !important;
+  height: 20px !important;
   margin: 0 !important;
   min-width: 0 !important;
+  outline: none !important;
   padding: 0 !important;
   width: 100% !important;
 }
 
-#dcf-subject-filter-opacity::-webkit-slider-thumb {
+/* 원 UI 슬라이더: 트랙 6px. 채운 부분은 손잡이 중심까지(10px + 값 × (트랙 - 손잡이 20px)). */
+#dcf-subject-filter-panel #dcf-subject-filter-opacity::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    var(--nt-primary) 0,
+    var(--nt-primary)
+      calc(10px + var(--dcf-subject-filter-panel-opacity, 1) * (100% - 20px)),
+    var(--nt-slider-rest)
+      calc(10px + var(--dcf-subject-filter-panel-opacity, 1) * (100% - 20px)),
+    var(--nt-slider-rest) 100%
+  ) !important;
+  border-radius: 3px !important;
+  height: 6px !important;
+}
+
+/* 손잡이 20px 강조색 + 흰 2px 테두리(그림자로 그림) + 작은 그림자 */
+#dcf-subject-filter-panel #dcf-subject-filter-opacity::-webkit-slider-thumb {
   appearance: none !important;
-  background: #6d7fe3 !important;
+  background: var(--nt-primary) !important;
   border-radius: 50% !important;
-  box-shadow: 0 2px 5px rgba(40, 50, 101, 0.28) !important;
-  height: 14px !important;
-  width: 14px !important;
+  box-shadow: 0 0 0 2px #FFFFFF, 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+  height: 20px !important;
+  margin-top: -7px !important;
+  width: 20px !important;
 }
 
-#dcf-subject-filter-opacity::-moz-range-thumb {
-  background: #6d7fe3 !important;
+#dcf-subject-filter-panel #dcf-subject-filter-opacity::-moz-range-track {
+  background: var(--nt-slider-rest) !important;
+  border-radius: 3px !important;
+  height: 6px !important;
+}
+
+#dcf-subject-filter-panel #dcf-subject-filter-opacity::-moz-range-progress {
+  background: var(--nt-primary) !important;
+  border-radius: 3px !important;
+  height: 6px !important;
+}
+
+#dcf-subject-filter-panel #dcf-subject-filter-opacity::-moz-range-thumb {
+  background: var(--nt-primary) !important;
+  border: 0 !important;
   border-radius: 50% !important;
-  box-shadow: 0 2px 5px rgba(40, 50, 101, 0.28) !important;
-  height: 14px !important;
-  width: 14px !important;
+  box-shadow: 0 0 0 2px #FFFFFF, 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+  height: 20px !important;
+  width: 20px !important;
 }
 
-#dcf-subject-filter-opacity:focus-visible {
-  outline: 2px solid rgba(75, 79, 156, 0.62) !important;
-  outline-offset: 4px !important;
+#dcf-subject-filter-panel #dcf-subject-filter-opacity:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px var(--nt-primary) !important;
 }
 
-#dcf-subject-filter-opacity:disabled {
+#dcf-subject-filter-panel #dcf-subject-filter-opacity:disabled {
   cursor: wait !important;
-  opacity: 0.55 !important;
+  opacity: 0.5 !important;
 }
 
-.dcf-subject-filter-clear {
+/* 보조 알약 버튼(가운데 정렬, 꽉 찬 폭 아님) */
+#dcf-subject-filter-panel .dcf-subject-filter-clear {
+  align-items: center !important;
   appearance: none !important;
-  background: #ffffff !important;
-  border: 1px solid #d7d9e4 !important;
-  border-radius: 4px !important;
-  color: #4a4e68 !important;
+  background-color: var(--nt-fill) !important;
+  background-image: none !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  color: var(--nt-text) !important;
   cursor: pointer !important;
-  font: 700 10px/1.2 "Pretendard", "Pretendard Variable", sans-serif !important;
+  display: inline-flex !important;
+  font: 600 15px/1 "Pretendard", "Pretendard Variable", sans-serif !important;
+  height: 36px !important;
+  justify-content: center !important;
   margin: 0 !important;
-  padding: 5px 7px !important;
-}
-
-.dcf-subject-filter-clear:hover:not(:disabled),
-.dcf-subject-filter-clear:focus-visible:not(:disabled) {
-  border-color: #767bb5 !important;
-  color: #34397f !important;
+  min-width: 120px !important;
   outline: none !important;
+  padding: 0 24px !important;
+  transition: background-color 0.15s ease, color 0.15s ease !important;
+  width: auto !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
-.dcf-subject-filter-clear:disabled {
+#dcf-subject-filter-panel .dcf-subject-filter-clear:hover:not(:disabled) {
+  background-image: linear-gradient(var(--nt-hover), var(--nt-hover)) !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-clear:active:not(:disabled) {
+  background-image: linear-gradient(var(--nt-pressed), var(--nt-pressed)) !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-clear:focus-visible {
+  outline: 2px solid var(--nt-primary) !important;
+  outline-offset: 2px !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-clear:disabled {
+  color: var(--nt-text-4) !important;
   cursor: default !important;
-  opacity: 0.45 !important;
+  opacity: 1 !important;
 }
 
+/* 닉네임 강조: 사용자가 고른 색을 그대로 쓰고 테두리 없이 둥근 표시만 준다. */
 .dcf-highlighted-nickname {
   background: var(--dcf-highlight-color, #fff1a8) !important;
-  border-radius: 5px !important;
-  box-shadow: 0 0 0 1px rgba(75, 79, 156, 0.28) !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
   box-sizing: border-box !important;
   display: inline-block !important;
-  padding: 2px 5px !important;
+  padding: 2px 6px !important;
 }
 
+/* 디시 다크에서는 밝은 닉네임 글자가 밝은 강조색 위에서 안 보이므로 라이트와 같은 짙은 글자로 둔다. */
+html:has(#css-darkmode) .dcf-highlighted-nickname,
+html:has(#css-darkmode) .dcf-highlighted-nickname * {
+  color: #111111 !important;
+}
+
+/* 디시 내용 옆 인라인 버튼: 테두리 알약 높이 30, 눌림은 축소 없이 오버레이 */
 .dcf-bookmark-slot {
+  align-items: center !important;
   display: inline-flex !important;
   margin-right: 8px !important;
   vertical-align: middle !important;
 }
 
-#dcf-bookmark-button {
+#dcf-bookmark-button,
+#dcf-top-post-actions button,
+.dcf-image-bookmark-button {
+  align-items: center !important;
   appearance: none !important;
-  background: #ffffff !important;
-  border: 1px solid #4b4f9c !important;
-  border-radius: 3px !important;
-  color: #343875 !important;
+  background-color: var(--nt-surface) !important;
+  background-image: none !important;
+  border: 1px solid var(--nt-line) !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  box-sizing: border-box !important;
+  color: var(--nt-text-2) !important;
   cursor: pointer !important;
-  font: 700 11px/1.2 "Pretendard", "Pretendard Variable", sans-serif !important;
-  padding: 4px 7px !important;
+  display: inline-flex !important;
+  font: 500 13px/1 "Pretendard", "Pretendard Variable", sans-serif !important;
+  height: 30px !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  min-height: 30px !important;
+  outline: none !important;
+  padding: 0 14px !important;
+  text-decoration: none !important;
+  transition: background-color 0.15s ease, color 0.15s ease,
+    border-color 0.15s ease !important;
+  white-space: nowrap !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
-#dcf-bookmark-button[data-saved="true"] {
-  background: #4b4f9c !important;
-  color: #ffffff !important;
+#dcf-bookmark-button:hover:not(:disabled),
+#dcf-top-post-actions button:hover:not(:disabled),
+.dcf-image-bookmark-button:hover:not(:disabled) {
+  background-image: linear-gradient(var(--nt-hover), var(--nt-hover)) !important;
 }
 
-#dcf-bookmark-button:disabled {
+#dcf-bookmark-button:active:not(:disabled),
+#dcf-top-post-actions button:active:not(:disabled),
+.dcf-image-bookmark-button:active:not(:disabled) {
+  background-image: linear-gradient(var(--nt-pressed), var(--nt-pressed)) !important;
+}
+
+#dcf-bookmark-button[data-saved="true"],
+.dcf-image-bookmark-button[data-saved="true"] {
+  background-color: var(--nt-primary-weak) !important;
+  border-color: transparent !important;
+  color: var(--nt-primary-weak-text) !important;
+}
+
+#dcf-bookmark-button:focus-visible,
+#dcf-top-post-actions button:focus-visible,
+.dcf-image-bookmark-button:focus-visible {
+  outline: 2px solid var(--nt-primary) !important;
+  outline-offset: 2px !important;
+}
+
+#dcf-bookmark-button:disabled,
+#dcf-top-post-actions button:disabled,
+.dcf-image-bookmark-button:disabled {
   cursor: wait !important;
   opacity: 0.6 !important;
 }
 
+/* 본문 위 수정·삭제 바로가기 */
 #dcf-top-post-actions {
   align-items: center !important;
   background: transparent !important;
@@ -523,48 +797,65 @@ html.dcf-hide-anonymous-comments .dcf-anonymous-comment {
 }
 
 #dcf-top-post-actions button {
-  appearance: none !important;
-  border-radius: 9px !important;
-  cursor: pointer !important;
-  font: 700 14px/1.2 "Pretendard", "Pretendard Variable", sans-serif !important;
-  min-height: 38px !important;
   min-width: 56px !important;
 }
 
-#dcf-top-post-actions button {
-  background: #ffffff !important;
-  border: 1px solid #777ba9 !important;
-  color: #343875 !important;
-  padding: 9px 14px !important;
-}
-
 #dcf-top-post-actions button[data-action="삭제"] {
-  border-color: #b55b68 !important;
-  color: #912f40 !important;
+  color: var(--nt-danger) !important;
 }
 
+/* 본문 이미지 아래 이미지 북마크 */
+.dcf-image-bookmark-control {
+  align-items: center !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  justify-content: flex-start !important;
+  margin: 8px 0 14px !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+/* 원 UI 토스트: 아래 가운데 밝은 알약(다크는 #2E2E2E), 오류는 글자 앞 빨간 점 */
 #dcf-toast {
-  background: #20223f !important;
-  border-radius: 7px !important;
-  bottom: 30px !important;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25) !important;
-  color: #ffffff !important;
-  font: 700 12px/1.4 "Pretendard", "Pretendard Variable", sans-serif !important;
+  align-items: center !important;
+  background: var(--nt-toast-bg) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  bottom: 40px !important;
+  box-shadow: var(--nt-shadow-float) !important;
+  box-sizing: border-box !important;
+  color: var(--nt-toast-text) !important;
+  display: flex !important;
+  font: 500 14px/1.4 "Pretendard", "Pretendard Variable", sans-serif !important;
+  gap: 8px !important;
   left: 50% !important;
+  letter-spacing: 0 !important;
+  margin: 0 !important;
   max-width: min(420px, calc(100vw - 32px)) !important;
   opacity: 0 !important;
-  padding: 10px 14px !important;
+  overflow-wrap: anywhere !important;
+  padding: 12px 20px !important;
   pointer-events: none !important;
   position: fixed !important;
+  right: auto !important;
+  text-align: left !important;
   top: auto !important;
   transform: translate(-50%, 8px) !important;
-  transition: opacity 0.16s ease, transform 0.16s ease !important;
+  transition: opacity 0.2s ease, transform 0.2s ease !important;
   width: max-content !important;
+  word-break: keep-all !important;
   z-index: 2147483647 !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
-#dcf-toast[data-tone="error"] {
-  background: #8f2638 !important;
+#dcf-toast[data-tone="error"]::before {
+  background: var(--nt-danger) !important;
+  border-radius: 50% !important;
+  content: "" !important;
+  flex: 0 0 auto !important;
+  height: 8px !important;
+  width: 8px !important;
 }
 
 #dcf-toast.is-visible {
@@ -572,263 +863,7 @@ html.dcf-hide-anonymous-comments .dcf-anonymous-comment {
   transform: translate(-50%, 0) !important;
 }
 
-/* Liquid Glass */
-#dcf-subject-filter-button {
-  background: transparent !important;
-  border-color: transparent !important;
-  border-radius: 8px !important;
-  box-shadow: none !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
-
-#dcf-subject-filter-button:hover,
-#dcf-subject-filter-button[aria-expanded="true"] {
-  background: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-}
-
-#dcf-subject-filter-button:focus-visible {
-  background: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-  outline: 2px solid rgba(75, 79, 156, 0.62) !important;
-  outline-offset: 2px !important;
-}
-
-#dcf-subject-filter-panel {
-  background-color: rgba(
-    235,
-    242,
-    255,
-    var(--dcf-subject-filter-panel-opacity, 1)
-  ) !important;
-  background-image: linear-gradient(145deg, rgba(255, 255, 255, 0.06), rgba(215, 226, 255, 0.01)) !important;
-  border-color: rgba(255, 255, 255, 0.34) !important;
-  border-radius: 17px !important;
-  box-shadow: 0 18px 46px rgba(33, 42, 88, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
-  -webkit-backdrop-filter: blur(3px) saturate(135%) contrast(102%) !important;
-  backdrop-filter: blur(3px) saturate(135%) contrast(102%) !important;
-}
-
-.dcf-subject-filter-heading,
-.dcf-subject-filter-mode-row,
-.dcf-subject-write-settings,
-.dcf-subject-filter-footer {
-  border-color: rgba(103, 116, 164, 0.14) !important;
-}
-
-.dcf-subject-filter-heading,
-.dcf-subject-filter-mode-row,
-.dcf-subject-write-settings,
-.dcf-subject-filter-footer,
-.dcf-subject-filter-empty {
-  background: rgba(248, 250, 255, 0.5) !important;
-}
-
-.dcf-subject-filter-mode-row {
-  background: rgba(248, 250, 255, 0.5) !important;
-}
-
-.dcf-subject-filter-close {
-  border-radius: 8px !important;
-}
-
-.dcf-subject-filter-close:hover,
-.dcf-subject-filter-close:focus-visible {
-  background: rgba(255, 255, 255, 0.1) !important;
-}
-
-.dcf-subject-filter-switch span {
-  background: linear-gradient(135deg, #7084e8, #7c68cc) !important;
-  border: 1px solid rgba(255, 255, 255, 0.72) !important;
-  box-shadow: inset 0 1px 3px rgba(35, 43, 91, 0.2) !important;
-}
-
-.dcf-subject-filter-switch span::after {
-  background: linear-gradient(145deg, #ffffff, #e8edff) !important;
-  box-shadow: 0 2px 6px rgba(36, 44, 92, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96) !important;
-}
-
-.dcf-subject-filter-switch input:checked + span {
-  background: linear-gradient(135deg, #d46b83, #a94b70) !important;
-}
-
-.dcf-subject-filter-option {
-  background: rgba(248, 250, 255, 0.5) !important;
-  border-color: rgba(255, 255, 255, 0.26) !important;
-  border-radius: 10px !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38),
-    0 5px 14px rgba(43, 54, 111, 0.05) !important;
-}
-
-.dcf-subject-filter-option:has(input:checked) {
-  background: linear-gradient(135deg, rgba(223, 229, 255, 0.58), rgba(238, 226, 251, 0.58)) !important;
-  border-color: rgba(105, 120, 210, 0.5) !important;
-}
-
-.dcf-subject-filter-clear,
-#dcf-bookmark-button,
-#dcf-top-post-actions button {
-  background: rgba(248, 250, 255, 0.5) !important;
-  border-color: rgba(255, 255, 255, 0.32) !important;
-  border-radius: 9px !important;
-  box-shadow: 0 6px 16px rgba(42, 53, 106, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.42) !important;
-  -webkit-backdrop-filter: blur(4px) saturate(135%) !important;
-  backdrop-filter: blur(4px) saturate(135%) !important;
-}
-
-#dcf-bookmark-button[data-saved="true"] {
-  background: linear-gradient(135deg, #6679df, #4b56b5) !important;
-  border-color: rgba(255, 255, 255, 0.36) !important;
-}
-
-html:has(#css-darkmode) #dcf-subject-filter-button,
-html:has(#css-darkmode) #dcf-subject-filter-panel,
-html:has(#css-darkmode) .dcf-subject-filter-heading strong,
-html:has(#css-darkmode) .dcf-subject-filter-mode-row > span:first-child,
-html:has(#css-darkmode) .dcf-subject-write-settings > strong,
-html:has(#css-darkmode) .dcf-subject-write-follow,
-html:has(#css-darkmode) .dcf-subject-write-default > span,
-html:has(#css-darkmode) #dcf-subject-write-default,
-html:has(#css-darkmode) .dcf-subject-filter-option,
-html:has(#css-darkmode) .dcf-subject-filter-clear,
-html:has(#css-darkmode) #dcf-bookmark-button,
-html:has(#css-darkmode) #dcf-top-post-actions button {
-  color: #f7f9ff !important;
-}
-
-html:has(#css-darkmode) #dcf-subject-filter-panel {
-  background-color: rgba(
-    12,
-    18,
-    32,
-    var(--dcf-subject-filter-panel-opacity, 1)
-  ) !important;
-}
-
-html:has(#css-darkmode) #dcf-subject-write-default {
-  background: rgba(27, 34, 51, 0.72) !important;
-  border-color: rgba(255, 255, 255, 0.24) !important;
-}
-
-html:has(#css-darkmode) .dcf-subject-filter-heading,
-html:has(#css-darkmode) .dcf-subject-filter-mode-row,
-html:has(#css-darkmode) .dcf-subject-write-settings,
-html:has(#css-darkmode) .dcf-subject-filter-footer,
-html:has(#css-darkmode) .dcf-subject-filter-empty,
-html:has(#css-darkmode) .dcf-subject-filter-option,
-html:has(#css-darkmode) .dcf-subject-filter-clear,
-html:has(#css-darkmode) #dcf-bookmark-button,
-html:has(#css-darkmode) #dcf-top-post-actions button {
-  background: rgba(27, 34, 51, 0.5) !important;
-}
-
-html:has(#css-darkmode) .dcf-subject-filter-option:has(input:checked) {
-  background: linear-gradient(135deg, rgba(59, 73, 120, 0.58), rgba(77, 62, 109, 0.58)) !important;
-}
-
-html:has(#css-darkmode) .dcf-subject-filter-close,
-html:has(#css-darkmode) .dcf-subject-filter-mode-row [data-dcf-mode],
-html:has(#css-darkmode) .dcf-subject-write-settings [data-dcf-write-subject-status],
-html:has(#css-darkmode) .dcf-subject-filter-status,
-html:has(#css-darkmode) .dcf-subject-filter-opacity,
-html:has(#css-darkmode) .dcf-subject-filter-empty {
-  color: #d3d9e8 !important;
-}
-
-html:has(#css-darkmode) #dcf-subject-filter-opacity {
-  background: rgba(190, 201, 235, 0.3) !important;
-}
-
-html:has(#css-darkmode) #dcf-subject-filter-panel[data-mode="include"] [data-dcf-mode="include"],
-html:has(#css-darkmode) #dcf-subject-filter-panel[data-mode="exclude"] [data-dcf-mode="exclude"],
-html:has(#css-darkmode) .dcf-subject-filter-clear:hover:not(:disabled),
-html:has(#css-darkmode) .dcf-subject-filter-clear:focus-visible:not(:disabled) {
-  color: #dce4ff !important;
-}
-
-html:has(#css-darkmode) #dcf-top-post-actions button[data-action="삭제"] {
-  color: #ffc3cf !important;
-}
-
-.dcf-image-bookmark-control {
-  align-items: center !important;
-  box-sizing: border-box !important;
-  display: flex !important;
-  justify-content: flex-start !important;
-  margin: 6px 0 14px !important;
-  padding: 0 !important;
-  width: 100% !important;
-}
-
-.dcf-image-bookmark-button {
-  appearance: none !important;
-  background: rgba(248, 250, 255, 0.82) !important;
-  border: 1px solid rgba(82, 91, 151, 0.28) !important;
-  border-radius: 999px !important;
-  box-shadow: 0 5px 14px rgba(42, 53, 106, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.78) !important;
-  color: #343875 !important;
-  cursor: pointer !important;
-  display: inline-flex !important;
-  font: 700 11px/1.2 "Pretendard", "Pretendard Variable", sans-serif !important;
-  margin: 0 !important;
-  min-height: 28px !important;
-  padding: 6px 10px !important;
-  text-decoration: none !important;
-  -webkit-backdrop-filter: blur(8px) saturate(135%) !important;
-  backdrop-filter: blur(8px) saturate(135%) !important;
-}
-
-.dcf-image-bookmark-button:hover,
-.dcf-image-bookmark-button:focus-visible {
-  border-color: #6870bf !important;
-  box-shadow: 0 6px 18px rgba(42, 53, 106, 0.16),
-    0 0 0 2px rgba(104, 112, 191, 0.13) !important;
-  outline: none !important;
-}
-
-.dcf-image-bookmark-button[data-saved="true"] {
-  background: linear-gradient(135deg, #6679df, #4b56b5) !important;
-  border-color: rgba(255, 255, 255, 0.42) !important;
-  color: #ffffff !important;
-}
-
-.dcf-image-bookmark-button:disabled {
-  cursor: wait !important;
-  opacity: 0.65 !important;
-}
-
-html:has(#css-darkmode) .dcf-image-bookmark-button {
-  background: rgba(27, 34, 51, 0.72) !important;
-  border-color: rgba(255, 255, 255, 0.25) !important;
-  color: #f7f9ff !important;
-}
-
-html:has(#css-darkmode) .dcf-image-bookmark-button[data-saved="true"] {
-  background: linear-gradient(135deg, #7889e8, #5864bf) !important;
-}
-
-#dcf-toast {
-  background: rgba(31, 40, 88, 0.88) !important;
-  border: 1px solid rgba(255, 255, 255, 0.24) !important;
-  border-radius: 14px !important;
-  box-shadow: 0 16px 44px rgba(24, 32, 75, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(160%) !important;
-  backdrop-filter: blur(20px) saturate(160%) !important;
-}
-
-#dcf-toast[data-tone="error"] {
-  background: rgba(143, 38, 64, 0.9) !important;
-}
-
-/* 나나툴 플로팅 버블 */
+/* 나나툴 플로팅 버블: 원형 --nt-surface + 떠 있는 그림자, 열린 상태 2px 강조 링 */
 #dcf-floating-launcher {
   all: initial !important;
   height: 0 !important;
@@ -843,26 +878,10 @@ html:has(#css-darkmode) .dcf-image-bookmark-button[data-saved="true"] {
 #dcf-floating-bubble {
   all: initial !important;
   appearance: none !important;
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.12),
-      rgba(255, 255, 255, 0.018) 48%,
-      rgba(111, 128, 224, 0.08)
-    ) padding-box,
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.98),
-      rgba(255, 255, 255, 0.34) 38%,
-      rgba(111, 128, 224, 0.58) 72%,
-      rgba(255, 255, 255, 0.78)
-    ) border-box !important;
-  border: 2px solid transparent !important;
+  background: var(--nt-surface) !important;
+  border: 0 !important;
   border-radius: 50% !important;
-  box-shadow: 0 10px 28px rgba(46, 35, 77, 0.28),
-    0 2px 8px rgba(71, 67, 122, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.62),
-    inset 0 -1px 0 rgba(103, 116, 198, 0.16) !important;
+  box-shadow: var(--nt-shadow-float) !important;
   box-sizing: border-box !important;
   cursor: grab !important;
   display: block !important;
@@ -879,68 +898,60 @@ html:has(#css-darkmode) .dcf-image-bookmark-button[data-saved="true"] {
     box-shadow 0.18s ease !important;
   user-select: none !important;
   width: var(--dcf-bubble-size, 64px) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(170%) !important;
-  backdrop-filter: blur(16px) saturate(170%) !important;
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
   z-index: 2 !important;
 }
 
-#dcf-floating-bubble::after {
+/* 사용자 이미지가 없을 때만 보이는 단순한 기본 기호(강조색 둥근 네모 네 칸) */
+#dcf-floating-bubble[data-custom-image="false"]::before {
   all: initial !important;
-  background: linear-gradient(
-    150deg,
-    rgba(255, 255, 255, 0.34),
-    rgba(255, 255, 255, 0.04) 42%,
-    transparent 62%
-  ) !important;
-  border-radius: 50% !important;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.42) !important;
+  background: var(--nt-primary) !important;
   content: "" !important;
-  inset: 2px !important;
+  inset: 0 !important;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3.5' y='3.5' width='7.5' height='7.5' rx='2.4'/%3E%3Crect x='13' y='3.5' width='7.5' height='7.5' rx='2.4'/%3E%3Crect x='3.5' y='13' width='7.5' height='7.5' rx='2.4'/%3E%3Crect x='13' y='13' width='7.5' height='7.5' rx='2.4'/%3E%3C/svg%3E") center / 38% 38% no-repeat !important;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3.5' y='3.5' width='7.5' height='7.5' rx='2.4'/%3E%3Crect x='13' y='3.5' width='7.5' height='7.5' rx='2.4'/%3E%3Crect x='3.5' y='13' width='7.5' height='7.5' rx='2.4'/%3E%3Crect x='13' y='13' width='7.5' height='7.5' rx='2.4'/%3E%3C/svg%3E") center / 38% 38% no-repeat !important;
   pointer-events: none !important;
   position: absolute !important;
 }
 
-#dcf-floating-bubble[data-theme="dark"] {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.085),
-      rgba(6, 11, 23, 0.05) 48%,
-      rgba(96, 115, 211, 0.1)
-    ) padding-box,
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.72),
-      rgba(255, 255, 255, 0.18) 38%,
-      rgba(118, 137, 235, 0.54) 72%,
-      rgba(255, 255, 255, 0.48)
-    ) border-box !important;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.44),
-    0 2px 9px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.34),
-    inset 0 -1px 0 rgba(91, 108, 205, 0.22) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(165%) brightness(0.78) !important;
-  backdrop-filter: blur(18px) saturate(165%) brightness(0.78) !important;
+/* 눌림·마우스 올림은 축소 없이 위에 옅은 오버레이(사용자 이미지 위에도 덮임) */
+#dcf-floating-bubble::after {
+  all: initial !important;
+  background: transparent !important;
+  border-radius: 50% !important;
+  content: "" !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  transition: background-color 0.15s ease !important;
 }
 
-#dcf-floating-bubble:hover,
+#dcf-floating-bubble:hover::after {
+  background: var(--nt-hover) !important;
+}
+
+#dcf-floating-bubble:active::after {
+  background: var(--nt-pressed) !important;
+}
+
 #dcf-floating-bubble[aria-expanded="true"] {
-  box-shadow: 0 14px 34px rgba(46, 35, 77, 0.34),
-    0 3px 10px rgba(71, 67, 122, 0.26),
-    0 0 0 4px rgba(119, 126, 214, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88) !important;
-  transform: scale(1.055) !important;
+  box-shadow: 0 0 0 2px var(--nt-primary), var(--nt-shadow-float) !important;
+}
+
+#dcf-floating-bubble:focus {
+  outline: none !important;
 }
 
 #dcf-floating-bubble:focus-visible {
-  outline: 3px solid rgba(78, 88, 177, 0.76) !important;
+  outline: 2px solid var(--nt-primary) !important;
   outline-offset: 3px !important;
 }
 
 #dcf-floating-bubble[data-dragging="true"] {
   cursor: grabbing !important;
-  transition: transform 0.12s ease, box-shadow 0.12s ease !important;
-  transform: scale(1.075) !important;
+  transition: box-shadow 0.12s ease !important;
 }
 
 #dcf-floating-bubble img {
@@ -962,22 +973,22 @@ html:has(#css-darkmode) .dcf-image-bookmark-button[data-saved="true"] {
   display: none !important;
 }
 
+/* 버블 패널: 원 UI 시트(radius 26) + 제목 20px/600·닫기 머리 영역 + 빠른 설정 프레임 */
 #dcf-floating-panel {
   all: initial !important;
-  background: rgba(230, 238, 255, 0.12) !important;
-  border: 1px solid rgba(255, 255, 255, 0.46) !important;
-  border-radius: 20px !important;
-  box-shadow: 0 22px 58px rgba(26, 33, 72, 0.27),
-    0 7px 20px rgba(44, 50, 91, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.62) !important;
+  background: var(--nt-bg) !important;
+  border: 0 !important;
+  border-radius: 26px !important;
+  box-shadow: var(--nt-shadow-float) !important;
   box-sizing: border-box !important;
-  display: block !important;
+  display: flex !important;
+  flex-direction: column !important;
   height: 460px !important;
   opacity: 0 !important;
   overflow: hidden !important;
   pointer-events: none !important;
   position: fixed !important;
-  transform: translateY(10px) scale(0.975) !important;
+  transform: translateY(10px) !important;
   transform-origin: bottom right !important;
   transition: opacity 0.2s ease,
     transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
@@ -985,8 +996,8 @@ html:has(#css-darkmode) .dcf-image-bookmark-button[data-saved="true"] {
     top 0.28s cubic-bezier(0.22, 1, 0.36, 1),
     height 0.18s ease !important;
   visibility: hidden !important;
-  -webkit-backdrop-filter: blur(18px) saturate(150%) !important;
-  backdrop-filter: blur(18px) saturate(150%) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
   z-index: 1 !important;
 }
 
@@ -1001,41 +1012,108 @@ html:has(#css-darkmode) .dcf-image-bookmark-button[data-saved="true"] {
 #dcf-floating-panel.is-open {
   opacity: 1 !important;
   pointer-events: auto !important;
-  transform: translateY(0) scale(1) !important;
+  transform: translateY(0) !important;
   visibility: visible !important;
+}
+
+#dcf-floating-panel[data-theme="dark"] {
+  background: var(--nt-bg) !important;
+  box-shadow: var(--nt-shadow-float) !important;
+}
+
+#dcf-floating-panel .dcf-floating-panel-header {
+  all: initial !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex: 0 0 auto !important;
+  gap: 8px !important;
+  height: 52px !important;
+  justify-content: space-between !important;
+  /* 제목은 아래 카드 안 글자 시작선(시트 안쪽 12 + 행 안쪽 20)에 맞춘다. */
+  padding: 8px 12px 0 32px !important;
+}
+
+#dcf-floating-panel .dcf-floating-panel-title {
+  all: initial !important;
+  color: var(--nt-text) !important;
+  font: 600 20px/1.3 "Pretendard", "Pretendard Variable", sans-serif !important;
+  white-space: nowrap !important;
+}
+
+#dcf-floating-panel .dcf-floating-panel-close {
+  all: initial !important;
+  align-items: center !important;
+  border-radius: 50% !important;
+  box-sizing: border-box !important;
+  color: var(--nt-text-2) !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  font: 400 22px/1 "Pretendard", "Pretendard Variable", sans-serif !important;
+  height: 32px !important;
+  justify-content: center !important;
+  padding: 0 0 2px !important;
+  transition: background-color 0.15s ease !important;
+  width: 32px !important;
+}
+
+#dcf-floating-panel .dcf-floating-panel-close:hover {
+  background: var(--nt-hover) !important;
+}
+
+#dcf-floating-panel .dcf-floating-panel-close:active {
+  background: var(--nt-pressed) !important;
+}
+
+#dcf-floating-panel .dcf-floating-panel-close:focus-visible {
+  outline: 2px solid var(--nt-primary) !important;
+  outline-offset: 0 !important;
 }
 
 #dcf-floating-frame {
   all: initial !important;
   background: transparent !important;
   border: 0 !important;
+  /* 빠른 설정 문서의 color-scheme과 맞춰야 크롬이 불투명한 배경을 따로 깔지 않는다. */
+  color-scheme: light !important;
   display: block !important;
-  height: 100% !important;
+  flex: 1 1 auto !important;
+  height: auto !important;
   margin: 0 !important;
+  min-height: 0 !important;
   width: 100% !important;
 }
 
-#dcf-floating-panel[data-theme="dark"] {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.09),
-      rgba(255, 255, 255, 0.015) 42%,
-      rgba(111, 130, 225, 0.06)
-    ),
-    rgba(7, 12, 24, 0.2) !important;
-  border-color: rgba(255, 255, 255, 0.22) !important;
-  box-shadow: 0 24px 62px rgba(0, 0, 0, 0.46),
-    inset 0 1px 0 rgba(255, 255, 255, 0.24) !important;
-  -webkit-backdrop-filter: blur(22px) saturate(165%) brightness(0.74) !important;
-  backdrop-filter: blur(22px) saturate(165%) brightness(0.74) !important;
+#dcf-floating-panel[data-theme="dark"] #dcf-floating-frame {
+  color-scheme: dark !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
   #dcf-floating-bubble,
+  #dcf-floating-bubble::after,
   #dcf-floating-bubble[data-dragging="true"],
-  #dcf-floating-panel {
+  #dcf-floating-panel,
+  #dcf-floating-panel .dcf-floating-panel-close,
+  #dcf-subject-filter-button,
+  /* 패널 안 규칙(#패널 .클래스)보다 우선하도록 id를 두 번 쓴다. */
+  #dcf-subject-filter-panel#dcf-subject-filter-panel *,
+  #dcf-subject-filter-panel#dcf-subject-filter-panel *::before,
+  #dcf-subject-filter-panel#dcf-subject-filter-panel *::after,
+  #dcf-bookmark-button,
+  #dcf-top-post-actions button,
+  .dcf-image-bookmark-button {
     transition: none !important;
+  }
+
+  #dcf-floating-panel,
+  #dcf-floating-panel.is-open {
+    transform: none !important;
+  }
+
+  #dcf-toast {
+    transition: opacity 0.2s ease !important;
+    transform: translate(-50%, 0) !important;
   }
 }
 
@@ -1046,38 +1124,88 @@ html:has(#css-darkmode) .dcf-image-bookmark-button[data-saved="true"] {
 #dcf-subject-filter-panel *::before,
 #dcf-subject-filter-panel *::after,
 #dcf-floating-panel,
+#dcf-floating-panel *,
 #dcf-floating-frame {
   border: 0 !important;
 }
 
 /* Bubble-menu switch standard */
-.dcf-subject-filter-switch {
-  height: 22px !important;
-  width: 38px !important;
+/*
+ * 원 UI 스위치(전체 설정·빠른 설정과 같은 방식): 트랙 44×24 radius 12.
+ * 꺼짐 = 투명 트랙 + 2px 회색 테두리(무테 규칙에 맞춰 안쪽 그림자로 그림) + 회색 손잡이 16(왼쪽 안 4px)
+ * 켜짐 = 강조색 채움 + 흰 손잡이 18(16px 손잡이를 20px 옮기고 1.125배 → 오른쪽 안 3px). 전환 0.2s
+ */
+#dcf-subject-filter-panel .dcf-subject-filter-switch {
+  align-items: center !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  height: 24px !important;
+  margin: 0 !important;
+  position: relative !important;
+  width: 44px !important;
 }
 
-.dcf-subject-filter-switch span {
-  background: rgba(110, 120, 151, 0.34) !important;
-  border: 0 !important;
-  box-shadow: inset 0 1px 3px rgba(45, 53, 90, 0.16) !important;
-  height: 22px !important;
-  width: 38px !important;
+#dcf-subject-filter-panel .dcf-subject-filter-switch input {
+  height: 1px !important;
+  margin: -1px !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  position: absolute !important;
+  width: 1px !important;
 }
 
-.dcf-subject-filter-switch span::after {
-  background: linear-gradient(145deg, #ffffff, #e9edff) !important;
-  box-shadow: 0 2px 6px rgba(34, 42, 84, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+#dcf-subject-filter-panel .dcf-subject-filter-switch span,
+#dcf-subject-filter-panel .dcf-subject-write-follow input {
+  appearance: none !important;
+  background: transparent !important;
+  border-radius: 12px !important;
+  box-shadow: inset 0 0 0 2px var(--nt-switch-off) !important;
+  cursor: pointer !important;
+  display: block !important;
+  flex: 0 0 auto !important;
+  height: 24px !important;
+  margin: 0 !important;
+  outline: none !important;
+  padding: 0 !important;
+  position: relative !important;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease !important;
+  width: 44px !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-switch span::after,
+#dcf-subject-filter-panel .dcf-subject-write-follow input::after {
+  background: var(--nt-switch-off) !important;
+  border-radius: 50% !important;
+  content: "" !important;
   height: 16px !important;
-  left: 2px !important;
-  top: 2px !important;
+  left: 4px !important;
+  position: absolute !important;
+  top: 4px !important;
+  transition: transform 0.2s ease, background-color 0.2s ease !important;
   width: 16px !important;
 }
 
-.dcf-subject-filter-switch input:checked + span {
-  background: linear-gradient(135deg, #6d82ed, #725fc9) !important;
+#dcf-subject-filter-panel .dcf-subject-filter-switch input:checked + span,
+#dcf-subject-filter-panel .dcf-subject-write-follow input:checked {
+  background: var(--nt-primary) !important;
+  box-shadow: inset 0 0 0 2px var(--nt-primary) !important;
 }
 
-.dcf-subject-filter-switch input:checked + span::after {
-  transform: translateX(16px) !important;
+#dcf-subject-filter-panel .dcf-subject-filter-switch input:checked + span::after,
+#dcf-subject-filter-panel .dcf-subject-write-follow input:checked::after {
+  background: var(--nt-switch-knob-on) !important;
+  transform: translateX(20px) scale(1.125) !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-switch input:focus-visible + span,
+#dcf-subject-filter-panel .dcf-subject-write-follow input:focus-visible {
+  outline: 2px solid var(--nt-primary) !important;
+  outline-offset: 2px !important;
+}
+
+#dcf-subject-filter-panel .dcf-subject-filter-switch input:disabled + span,
+#dcf-subject-filter-panel .dcf-subject-write-follow input:disabled {
+  cursor: wait !important;
+  opacity: 0.5 !important;
 }

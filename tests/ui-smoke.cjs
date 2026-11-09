@@ -536,23 +536,36 @@ async function openLocalPage(browser, filename) {
       ),
       /Pretendard/
     );
-    const popupGlass = await popup.page.locator(".panel").first().evaluate(
+    // 원 UI 기준: 유리 흐림 없이 회색 바탕(#F2F2F2) 위 평평한 카드 그룹(#FCFCFC, 팝업 radius 22)
+    const popupSurface = await popup.page.locator(".panel-card").first().evaluate(
       (element) => {
         const style = getComputedStyle(element);
         return {
           backdrop: style.backdropFilter,
           radius: Number.parseFloat(style.borderRadius),
-          fill: style.getPropertyValue("--glass-fill-strong"),
-          surfaceAlpha: style.backgroundColor.startsWith("rgba(")
-            ? Number(style.backgroundColor.match(/[\d.]+(?=\))/)?.[0] || 0)
-            : 1
+          background: style.backgroundColor,
+          pageBackground: getComputedStyle(document.body).backgroundColor
         };
       }
     );
-    assert.match(popupGlass.backdrop, /blur/);
-    assert.ok(popupGlass.radius >= 16);
-    assert.match(popupGlass.fill, /0\.12/);
-    assert.equal(popupGlass.surfaceAlpha, 0.5);
+    assert.ok(["none", ""].includes(popupSurface.backdrop));
+    assert.equal(popupSurface.radius, 22);
+    assert.equal(popupSurface.background, "rgb(252, 252, 252)");
+    assert.equal(popupSurface.pageBackground, "rgb(242, 242, 242)");
+    assert.ok(
+      (await popup.page.locator(".switch-row").first().evaluate(
+        (element) => element.getBoundingClientRect().height
+      )) >= 56,
+      "팝업 목록 행 높이 56px 이상"
+    );
+    // 원 UI 행 제목은 17px/400 (굵게 쓰지 않는다)
+    assert.deepEqual(
+      await popup.page.locator(".switch-row strong").first().evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { size: style.fontSize, weight: style.fontWeight };
+      }),
+      { size: "17px", weight: "400" }
+    );
     const popupSwitchVisual = await popup.page.locator(".switch").first().evaluate(
       (element) => {
         const style = getComputedStyle(element);
@@ -567,16 +580,18 @@ async function openLocalPage(browser, filename) {
         };
       }
     );
+    // 원 UI 스위치(꺼짐): 트랙 44×24, 손잡이 16, 왼쪽·위 안쪽 4px
     assert.deepEqual(popupSwitchVisual, {
-      width: "38px",
-      height: "22px",
+      width: "44px",
+      height: "24px",
       knobWidth: "16px",
       knobHeight: "16px",
-      knobLeft: "2px",
-      knobTop: "2px"
+      knobLeft: "4px",
+      knobTop: "4px"
     });
     for (const selector of [
       ".panel",
+      ".panel-card",
       ".switch-row",
       "select",
       "textarea",
@@ -606,11 +621,19 @@ async function openLocalPage(browser, filename) {
       ),
       false
     );
+    // 그룹 소제목은 14px/600 --nt-text-3, 행 제목은 --nt-text
     assert.equal(
       await popup.page
         .locator("#filter-title")
         .evaluate((element) => getComputedStyle(element).color),
-      "rgb(25, 33, 61)"
+      "rgb(138, 138, 138)"
+    );
+    assert.equal(
+      await popup.page
+        .locator(".switch-row strong")
+        .first()
+        .evaluate((element) => getComputedStyle(element).color),
+      "rgb(17, 17, 17)"
     );
     const popupAlignment = await popup.page.evaluate(() => {
       const center = (selector) => {
@@ -634,7 +657,21 @@ async function openLocalPage(browser, filename) {
     const popupDarkText = await popup.page.locator("#filter-title").evaluate(
       (element) => getComputedStyle(element).color
     );
-    assert.match(popupDarkText, /rgb\((24[0-9]|25[0-5]), (24[0-9]|25[0-5]), 255\)/);
+    assert.equal(popupDarkText, "rgb(140, 140, 140)");
+    assert.equal(
+      await popup.page
+        .locator(".switch-row strong")
+        .first()
+        .evaluate((element) => getComputedStyle(element).color),
+      "rgb(250, 250, 250)"
+    );
+    // 원 UI 다크는 진짜 검정 바탕
+    assert.equal(
+      await popup.page.locator("body").evaluate(
+        (element) => getComputedStyle(element).backgroundColor
+      ),
+      "rgb(0, 0, 0)"
+    );
     const options = await openLocalPage(browser, "options.html");
     await options.page.waitForFunction(() =>
       document
@@ -683,23 +720,52 @@ async function openLocalPage(browser, filename) {
       ),
       /Pretendard/
     );
-    const optionsFlat = await options.page.locator(".card").first().evaluate(
+    // 원 UI 카드 그룹: 회색 바탕(#F2F2F2) 위 그림자 없는 평평한 카드(#FCFCFC, radius 26)
+    const optionsFlat = await options.page.locator(".card-body").first().evaluate(
       (element) => {
         const style = getComputedStyle(element);
         return {
           backdrop: style.backdropFilter,
           radius: Number.parseFloat(style.borderRadius),
           background: style.backgroundColor,
-          shadow: style.boxShadow
+          shadow: style.boxShadow,
+          pageBackground: getComputedStyle(document.body).backgroundColor
         };
       }
     );
     assert.ok(optionsFlat.backdrop === "none" || optionsFlat.backdrop === "");
-    assert.equal(optionsFlat.radius, 12);
-    assert.equal(optionsFlat.background, "rgb(255, 255, 255)");
+    assert.equal(optionsFlat.radius, 26);
+    assert.equal(optionsFlat.background, "rgb(252, 252, 252)");
     assert.equal(optionsFlat.shadow, "none");
+    assert.equal(optionsFlat.pageBackground, "rgb(242, 242, 242)");
+    assert.ok(
+      (await options.page.locator(".toggle-card").first().evaluate(
+        (element) => element.getBoundingClientRect().height
+      )) >= 60,
+      "전체 설정 목록 행 높이 60px 이상"
+    );
+    // 원 UI 보기 영역: 큰 제목 40px/600, 행 제목 17px/400
+    assert.deepEqual(
+      await options.page.locator("h1").evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          size: style.fontSize,
+          weight: style.fontWeight,
+          top: Math.round(element.getBoundingClientRect().top)
+        };
+      }),
+      { size: "40px", weight: "600", top: 96 }
+    );
+    assert.equal(
+      await options.page
+        .locator(".toggle-card strong")
+        .first()
+        .evaluate((element) => getComputedStyle(element).fontWeight),
+      "400"
+    );
     for (const selector of [
       ".card",
+      ".card-body",
       ".toggle-card",
       ".section-note",
       "#affix-gallery-id",
@@ -865,7 +931,7 @@ async function openLocalPage(browser, filename) {
         .locator(".field > span")
         .first()
         .evaluate((element) => getComputedStyle(element).color),
-      "rgb(201, 207, 221)"
+      "rgb(207, 207, 207)"
     );
 
     const bookmarkSummary = options.page.locator(
@@ -1075,7 +1141,7 @@ async function openLocalPage(browser, filename) {
       await gallery.page.locator("body").evaluate(
         (element) => getComputedStyle(element).color
       ),
-      "rgb(29, 32, 55)"
+      "rgb(17, 17, 17)"
     );
     await gallery.page.locator("#theme-mode").selectOption("system");
     await gallery.page.waitForFunction(
@@ -1085,16 +1151,23 @@ async function openLocalPage(browser, filename) {
       await gallery.page.locator("body").evaluate(
         (element) => getComputedStyle(element).color
       ),
-      "rgb(246, 247, 251)"
+      "rgb(250, 250, 250)"
+    );
+    // 원 UI 다크는 진짜 검정 바탕
+    assert.equal(
+      await gallery.page.locator("body").evaluate(
+        (element) => getComputedStyle(element).backgroundColor
+      ),
+      "rgb(0, 0, 0)"
     );
 
     const content = await openLocalPage(browser, "tests/dom-fixture.html");
     await content.page.waitForFunction(
-      () => document.querySelector("#test-summary")?.dataset.total === "41"
+      () => document.querySelector("#test-summary")?.dataset.total === "42"
     );
     assert.equal(
       await content.page.locator("#test-summary").getAttribute("data-passed"),
-      "41",
+      "42",
       await content.page.locator("#results").innerText()
     );
     await content.page.waitForFunction(
@@ -1468,8 +1541,12 @@ async function openLocalPage(browser, filename) {
           alpha
         };
       });
-    assert.match(contentGlass.backdrop, /blur/);
-    assert.ok(contentGlass.radius >= 16);
+    // 원 UI 기준: 불투명도 100%에서는 유리 흐림 없는 불투명 시트(radius 26)
+    assert.ok(
+      ["none", "blur(0px)"].includes(contentGlass.backdrop),
+      `말머리 설정 흐림 ${contentGlass.backdrop}`
+    );
+    assert.equal(contentGlass.radius, 26);
     assert.ok(contentGlass.alpha >= 0.99);
     const opacitySlider = content.page.locator("#dcf-subject-filter-opacity");
     assert.equal(await opacitySlider.getAttribute("min"), "0");
@@ -1536,14 +1613,34 @@ async function openLocalPage(browser, filename) {
             knobTop: knob.top
           };
         }),
-      popupSwitchVisual
+      // 원 UI 스위치(꺼짐): 트랙 44×24, 회색 손잡이 16(왼쪽 안 4px)
+      {
+        width: "44px",
+        height: "24px",
+        knobWidth: "16px",
+        knobHeight: "16px",
+        knobLeft: "4px",
+        knobTop: "4px"
+      }
     );
-    assert.equal(
+    // 체크 안 한 말머리 칩은 투명 바탕 + 1px --nt-line(#E3E3E3) 테두리 알약
+    assert.deepEqual(
       await content.page
         .locator(".dcf-subject-filter-option")
         .nth(1)
-        .evaluate((element) => getComputedStyle(element).backgroundColor),
-      "rgba(248, 250, 255, 0.5)"
+        .evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            background: style.backgroundColor,
+            outline: style.boxShadow,
+            radius: style.borderRadius
+          };
+        }),
+      {
+        background: "rgba(0, 0, 0, 0)",
+        outline: "rgb(227, 227, 227) 0px 0px 0px 1px inset",
+        radius: "999px"
+      }
     );
     await content.page.evaluate(() => {
       document.documentElement.classList.add("darkmode");
@@ -1556,7 +1653,7 @@ async function openLocalPage(browser, filename) {
       await content.page
         .locator(".dcf-subject-filter-heading strong")
         .evaluate((element) => getComputedStyle(element).color),
-      "rgb(32, 36, 61)"
+      "rgb(17, 17, 17)"
     );
     await content.page.evaluate(() => {
       const darkStylesheet = document.createElement("link");
@@ -1571,7 +1668,7 @@ async function openLocalPage(browser, filename) {
     const contentDarkText = await content.page
       .locator(".dcf-subject-filter-heading strong")
       .evaluate((element) => getComputedStyle(element).color);
-    assert.equal(contentDarkText, "rgb(247, 249, 255)");
+    assert.equal(contentDarkText, "rgb(250, 250, 250)");
     assert.equal(
       await content.page.locator("#dcf-subject-filter-slot").evaluate(
         (slot) => slot.parentElement?.id
@@ -1579,10 +1676,15 @@ async function openLocalPage(browser, filename) {
       "subject-tabs"
     );
     await content.page.locator("#dcf-subject-filter-button").hover();
+    // 열린 상태 아이콘은 유리 효과 없이 --nt-primary-weak(다크) 단색 바탕
     assert.deepEqual(
       await content.page
         .locator("#dcf-subject-filter-button")
-        .evaluate((element) => {
+        .evaluate(async (element) => {
+          // 테마 전환 색 변화(0.15초)가 끝난 뒤의 값을 읽는다.
+          await Promise.all(
+            element.getAnimations().map((animation) => animation.finished)
+          );
           const style = getComputedStyle(element);
           return {
             backgroundColor: style.backgroundColor,
@@ -1591,7 +1693,7 @@ async function openLocalPage(browser, filename) {
           };
         }),
       {
-        backgroundColor: "rgba(0, 0, 0, 0)",
+        backgroundColor: "rgba(91, 164, 255, 0.18)",
         backgroundImage: "none",
         boxShadow: "none"
       }
@@ -1641,9 +1743,11 @@ async function openLocalPage(browser, filename) {
           ".dcf-subject-write-default > span",
           "#dcf-subject-write-default"
         ),
+        // 불투명도 행(제목·슬라이더·값)은 한 줄 가운데 정렬, 전체 해제는 아래 꽉 찬 버튼
         footer: centers(
-          ".dcf-subject-filter-opacity",
-          ".dcf-subject-filter-clear"
+          ".dcf-subject-filter-opacity > span",
+          "#dcf-subject-filter-opacity",
+          ".dcf-subject-filter-opacity > output"
         ),
         topActions: centers(
           '#dcf-top-post-actions button[data-action="수정"]',
@@ -1663,7 +1767,7 @@ async function openLocalPage(browser, filename) {
             ).fontWeight
         )
       ),
-      ["700", "700"]
+      ["500", "500"]
     );
     const topActionVisual = await content.page
       .locator("#dcf-top-post-actions")
@@ -1692,8 +1796,9 @@ async function openLocalPage(browser, filename) {
     assert.ok(
       topActionVisual.buttons.every(
         (button) =>
-          button.fontSize === "14px" &&
-          button.height >= 38 &&
+          // 원 UI 인라인 버튼: 테두리 알약 높이 30, 13px
+          button.fontSize === "13px" &&
+          button.height >= 30 &&
           button.width >= 56
       )
     );
@@ -1812,14 +1917,17 @@ async function openLocalPage(browser, filename) {
       return {
         backdrop: style.backdropFilter,
         background: style.backgroundImage,
-        border: style.borderColor,
+        backgroundColor: style.backgroundColor,
+        border: style.borderTopWidth,
         radius: style.borderRadius,
         transition: style.transition
       };
     });
-    assert.match(bubbleVisual.backdrop, /blur/);
-    assert.match(bubbleVisual.background, /linear-gradient/);
-    assert.equal(bubbleVisual.border, "rgba(0, 0, 0, 0)");
+    // 유리 효과 대신 불투명한 원(다크 #171717) + 떠 있는 그림자
+    assert.equal(bubbleVisual.backdrop, "none");
+    assert.equal(bubbleVisual.background, "none");
+    assert.equal(bubbleVisual.backgroundColor, "rgb(23, 23, 23)");
+    assert.equal(bubbleVisual.border, "0px");
     assert.equal(bubbleVisual.radius, "50%");
     assert.match(bubbleVisual.transition, /left/);
     const customBubbleImage =
@@ -1976,6 +2084,33 @@ async function openLocalPage(browser, filename) {
     assert.ok(rightPanelBox.x + rightPanelBox.width + 10 <= rightBubbleBox.x);
     assert.ok(rightPanelBox.y >= 12);
     assert.ok(rightPanelBox.y + rightPanelBox.height <= 708);
+    // 원 UI 시트: radius 26, 작은 머리 영역(제목·닫기)
+    const floatingSheetVisual = await content.page
+      .locator("#dcf-floating-panel")
+      .evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          radius: style.borderRadius,
+          backdrop: style.backdropFilter,
+          title: element.querySelector(".dcf-floating-panel-title")?.textContent,
+          headerHeight: element
+            .querySelector(".dcf-floating-panel-header")
+            ?.getBoundingClientRect().height
+        };
+      });
+    assert.deepEqual(floatingSheetVisual, {
+      radius: "26px",
+      backdrop: "none",
+      title: "나나툴",
+      headerHeight: 52
+    });
+    await content.page.locator(".dcf-floating-panel-close").click();
+    assert.equal(
+      await content.page
+        .locator("#dcf-floating-panel")
+        .evaluate((element) => element.classList.contains("is-open")),
+      false
+    );
     assert.deepEqual(content.errors, []);
 
     console.log(

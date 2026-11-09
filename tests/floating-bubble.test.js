@@ -29,7 +29,7 @@ test("manifest가 자동 명함 이미지 자산 없이 임베디드 팝업을 �
   const manifest = JSON.parse(
     fs.readFileSync(path.join(root, "manifest.json"), "utf8")
   );
-  assert.equal(manifest.version, "1.0.1");
+  assert.equal(manifest.version, "1.1.0");
   assert.equal(
     manifest.content_scripts[0].js[0],
     "core.js"
