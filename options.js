@@ -57,6 +57,8 @@ let selectedFolderId = "all";
 let searchQuery = "";
 let editingAffixKey = "";
 let draggedBookmarkId = "";
+// 저장하지 않은 북마크 메모. 다른 화면의 변경으로 목록을 다시 그려도 유지한다.
+const bookmarkNoteDrafts = new Map();
 const systemThemeQuery = globalThis.matchMedia?.("(prefers-color-scheme: dark)");
 const bubbleCrop = {
   image: null,
@@ -712,8 +714,53 @@ function filteredBookmarks() {
   });
 }
 
+function captureFocusedBookmarkNote() {
+  const active = document.activeElement;
+  if (
+    !active ||
+    active.tagName !== "TEXTAREA" ||
+    !active.dataset.bookmarkNoteId ||
+    !elements.bookmarkList.contains(active)
+  ) {
+    return null;
+  }
+  return {
+    id: active.dataset.bookmarkNoteId,
+    start: active.selectionStart,
+    end: active.selectionEnd,
+    direction: active.selectionDirection,
+    scrollTop: active.scrollTop
+  };
+}
+
+function restoreFocusedBookmarkNote(focus) {
+  if (!focus) return;
+  const note = Array.from(
+    elements.bookmarkList.querySelectorAll("textarea[data-bookmark-note-id]")
+  ).find((item) => item.dataset.bookmarkNoteId === focus.id);
+  if (!note) return;
+  note.focus({ preventScroll: true });
+  try {
+    note.setSelectionRange(focus.start, focus.end, focus.direction);
+  } catch {
+    // 선택 범위를 복원하지 못해도 입력 내용은 유지된다.
+  }
+  note.scrollTop = focus.scrollTop;
+}
+
+function pruneBookmarkNoteDrafts() {
+  for (const [id, draft] of bookmarkNoteDrafts) {
+    const bookmark = state.bookmarks.find((item) => item.id === id);
+    if (!bookmark || bookmark.note === draft.value) {
+      bookmarkNoteDrafts.delete(id);
+    }
+  }
+}
+
 function renderBookmarks() {
   const bookmarks = filteredBookmarks();
+  const focusedNote = captureFocusedBookmarkNote();
+  pruneBookmarkNoteDrafts();
   elements.bookmarkList.replaceChildren();
   elements.bookmarkEmpty.hidden = bookmarks.length > 0;
   elements.bookmarkResultCount.textContent = `${bookmarks.length}개`;
@@ -794,7 +841,15 @@ function renderBookmarks() {
     note.rows = 3;
     note.maxLength = DCFCore.MAX_NOTE_LENGTH;
     note.placeholder = "메모";
-    note.value = bookmark.note;
+    note.dataset.bookmarkNoteId = bookmark.id;
+    note.value = bookmarkNoteDrafts.get(bookmark.id)?.value ?? bookmark.note;
+    note.addEventListener("input", () => {
+      if (note.value === bookmark.note) {
+        bookmarkNoteDrafts.delete(bookmark.id);
+      } else {
+        bookmarkNoteDrafts.set(bookmark.id, { value: note.value });
+      }
+    });
 
     const actions = document.createElement("div");
     actions.className = "bookmark-editor-actions";
@@ -811,6 +866,7 @@ function renderBookmarks() {
             note: note.value
           }
         });
+        bookmarkNoteDrafts.delete(bookmark.id);
         state = response.state;
         render();
         toast("북마크를 수정했습니다.");
@@ -831,6 +887,7 @@ function renderBookmarks() {
           type: "DELETE_BOOKMARK",
           id: bookmark.id
         });
+        bookmarkNoteDrafts.delete(bookmark.id);
         state = response.state;
         render();
         toast("북마크를 삭제했습니다.");
@@ -845,6 +902,7 @@ function renderBookmarks() {
     item.append(summary, editor);
     elements.bookmarkList.append(item);
   }
+  restoreFocusedBookmarkNote(focusedNote);
 }
 
 function render() {

@@ -381,7 +381,10 @@ function installChromeMock({ seed, extensionRoot }) {
           }
         ];
       },
-      sendMessage(tabId, message, callback) {
+      sendMessage(tabId, message, optionsOrCallback, maybeCallback) {
+        // popup.js는 { frameId: 0 } 옵션을 넘기므로 3·4개 인자를 모두 받는다
+        const callback =
+          typeof optionsOrCallback === "function" ? optionsOrCallback : maybeCallback;
         const response = {
           metadata: null,
           galleryContext: {

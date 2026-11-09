@@ -208,6 +208,39 @@ test("디시 이미지 주소와 이미지 북마크 폴더를 별도 스키마�
   assert.equal(state.imageBookmarks[0].mimeType, "image/avif");
 });
 
+test("이미지 북마크 주소는 확장프로그램이 내려받을 수 있는 디시 호스트만 허용한다", () => {
+  for (const allowed of [
+    "https://dcimg2.dcinside.co.kr/viewimage.php?id=a&no=1",
+    "https://dcimg8.dcinside.co.kr/gallog_upimg.php?mode=profile&gid=x",
+    "https://image.dcinside.co.kr/a.png",
+    "https://gall.dcinside.com/dcimages/a.png",
+    "https://gallog.dcinside.com/a.png",
+    "https://m.dcinside.com/a.png"
+  ]) {
+    assert.equal(core.canonicalizeDcImageUrl(allowed), allowed, allowed);
+  }
+  for (const blocked of [
+    "https://image.dcinside.com/viewimagePop.php?no=1",
+    "https://nstatic.dcinside.com/dc/w/images/a.png",
+    "https://dcimg1.dcinside.com/viewimage.php?id=a&no=1",
+    "https://dcinside.com/a.png",
+    "https://dcinside.co.kr.example.com/a.png"
+  ]) {
+    assert.equal(core.canonicalizeDcImageUrl(blocked), "", blocked);
+  }
+  assert.equal(core.isFetchableDcImageHost("DCIMG2.DCINSIDE.CO.KR."), true);
+  assert.equal(core.isFetchableDcImageHost("wstatic.dcinside.com"), false);
+
+  // 예전 버전에서 저장한 다른 디시 호스트의 이미지 북마크는 지우지 않는다.
+  const legacyUrl = "https://image.dcinside.com/viewimagePop.php?no=1";
+  const state = core.sanitizeState({
+    imageBookmarks: [{ id: "legacy-image", sourceUrl: legacyUrl }]
+  });
+  assert.equal(state.imageBookmarks.length, 1);
+  assert.equal(state.imageBookmarks[0].sourceUrl, legacyUrl);
+  assert.equal(core.canonicalizeStoredDcImageUrl("https://example.com/a.png"), "");
+});
+
 test("머리말·꼬리말 색상과 안전한 인라인 CSS만 정규화한다", () => {
   const state = core.sanitizeState({
     schemaVersion: 5,

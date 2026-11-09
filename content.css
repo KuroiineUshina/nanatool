@@ -360,6 +360,20 @@ html.dcf-hide-anonymous-comments .dcf-anonymous-comment {
   display: none !important;
 }
 
+/* 말머리 필터 저장 상태: 저장할 때만 보이고 평소에는 자리를 차지하지 않는다. */
+.dcf-subject-filter-status {
+  color: #777b90 !important;
+  font-size: 10px !important;
+  line-height: 1.3 !important;
+  margin: 0 !important;
+  padding: 0 12px 6px !important;
+  text-align: right !important;
+}
+
+.dcf-subject-filter-status:empty {
+  display: none !important;
+}
+
 .dcf-subject-filter-footer {
   align-items: center !important;
   border-top: 1px solid #eceef4 !important;
@@ -721,6 +735,7 @@ html:has(#css-darkmode) .dcf-subject-filter-option:has(input:checked) {
 html:has(#css-darkmode) .dcf-subject-filter-close,
 html:has(#css-darkmode) .dcf-subject-filter-mode-row [data-dcf-mode],
 html:has(#css-darkmode) .dcf-subject-write-settings [data-dcf-write-subject-status],
+html:has(#css-darkmode) .dcf-subject-filter-status,
 html:has(#css-darkmode) .dcf-subject-filter-opacity,
 html:has(#css-darkmode) .dcf-subject-filter-empty {
   color: #d3d9e8 !important;

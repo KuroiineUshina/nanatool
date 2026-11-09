@@ -28,9 +28,16 @@ const imageCache = {
     return response ? response.clone() : undefined;
   },
   async delete(key) {
-    return cachedImages.delete(String(key));
+    return cachedImages.delete(String(key?.url ?? key));
+  },
+  async keys() {
+    return [...cachedImages.keys()].map((url) => new Request(url));
   }
 };
+const sessionStored = {};
+let gallogRootFailures = 0;
+const roleListHtml = (id) =>
+  `<html><body><div class="gall_list">목록</div><div class="info_cont"><strong>매니저</strong><a href="https://gallog.dcinside.com/${id}_owner">운영자</a> manager page</div><div class="info_cont"><strong>부매니저</strong><span title="sub_${id}">부운영자</span></div><footer>footer</footer></body></html>`;
 const sandbox = {
   URL,
   URLSearchParams,
@@ -62,6 +69,10 @@ const sandbox = {
         }
       );
     }
+    if (url === "https://gallog.dcinside.com/" && gallogRootFailures > 0) {
+      gallogRootFailures -= 1;
+      throw new TypeError("Failed to fetch");
+    }
     if (url === "https://gallog.dcinside.com/") {
       return new Response(
         '<script>location.replace("/tester");</script>',
@@ -80,12 +91,11 @@ const sandbox = {
       });
     }
     if (
-      url ===
-      "https://gall.dcinside.com/mgallery/board/lists/?id=managed"
+      url.startsWith("https://gall.dcinside.com/mgallery/board/lists/?id=")
     ) {
-      return new Response("<html><body>manager page</body></html>", {
-        status: 200
-      });
+      const id = new URL(url).searchParams.get("id");
+      if (id === "broken") throw new TypeError("Failed to fetch");
+      return new Response(roleListHtml(id), { status: 200 });
     }
     if (
       url ===
@@ -163,6 +173,14 @@ const sandbox = {
         },
         async set(value) {
           Object.assign(stored, JSON.parse(JSON.stringify(value)));
+        }
+      },
+      session: {
+        async get(key) {
+          return { [key]: sessionStored[key] };
+        },
+        async set(value) {
+          Object.assign(sessionStored, JSON.parse(JSON.stringify(value)));
         }
       },
       onChanged: { addListener() {} }
@@ -369,7 +387,37 @@ test("임베디드 빠른 메뉴에는 전체 로컬 상태를 공개하지 않�
       { type: "GET_FULL_STATE" },
       embeddedSender
     ),
-    /확장프로그램 화면에서만/
+    /빠른 설정 화면에서는 사용할 수 없는 요청/
+  );
+  for (const type of [
+    "GET_IMAGE_LIBRARY",
+    "DELETE_BOOKMARK",
+    "DELETE_IMAGE_BOOKMARK",
+    "SET_BUBBLE_IMAGE",
+    "RESET_BUBBLE_IMAGE",
+    "UPSERT_GALLERY_AFFIX",
+    "CREATE_FOLDER",
+    "OPEN_OPTIONS"
+  ]) {
+    await assert.rejects(
+      sandbox.DCFBackgroundTest.handleMessage({ type }, embeddedSender),
+      /빠른 설정 화면에서는 사용할 수 없는 요청/,
+      type
+    );
+  }
+  const updated = await sandbox.DCFBackgroundTest.handleMessage(
+    {
+      type: "UPDATE_SETTINGS",
+      patch: { hideAnonymousPosts: true, themeMode: "dark", bubbleSize: 120 }
+    },
+    embeddedSender
+  );
+  assert.equal(updated.state.settings.hideAnonymousPosts, true);
+  assert.notEqual(updated.state.settings.bubbleSize, 120);
+  assert.equal("imageBookmarks" in updated.state, false);
+  await sandbox.DCFBackgroundTest.handleMessage(
+    { type: "UPDATE_SETTINGS", patch: { hideAnonymousPosts: false } },
+    embeddedSender
   );
   const embedded = await sandbox.DCFBackgroundTest.handleMessage(
     { type: "GET_EMBEDDED_STATE" },
@@ -562,6 +610,99 @@ test("활동 명함은 디시 운영 팝업의 공식 목록 응답만 읽는다
   assert.equal(roles.pages.length, 1);
   assert.equal(roles.pages[0].galleryKey, "minor:managed");
   assert.match(roles.pages[0].html, /manager page/);
+  // content.js가 읽는 `.info_cont` 영역만 보내고 나머지 HTML은 보내지 않는다.
+  assert.match(roles.pages[0].html, /managed_owner/);
+  assert.match(roles.pages[0].html, /sub_managed/);
+  assert.doesNotMatch(roles.pages[0].html, /gall_list|footer/);
+  const roleCall = fetchCalls.find((call) =>
+    call.url.endsWith("/mgallery/board/lists/?id=managed")
+  );
+  // 운영진 표시는 공개 정보이므로 쿠키 없이 요청한다.
+  assert.equal(roleCall.options.credentials, "omit");
+});
+
+test("운영 갤러리 역할 확인은 최대 20개·동시 2개로 요청하고 결과를 캐시한다", async () => {
+  const { roleFetchLimits } = sandbox.DCFBackgroundTest;
+  assert.equal(roleFetchLimits.maxPages, 20);
+  assert.equal(roleFetchLimits.concurrency, 2);
+  const galleries = Array.from({ length: 30 }, (_, index) => ({
+    galleryKind: "minor",
+    galleryId: `role_${index}`
+  }));
+  galleries.unshift({ galleryKind: "minor", galleryId: "broken" });
+
+  let active = 0;
+  let maxActive = 0;
+  const originalFetch = sandbox.fetch;
+  sandbox.fetch = async (input, options) => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      return await originalFetch(input, options);
+    } finally {
+      active -= 1;
+    }
+  };
+  try {
+    fetchCalls.length = 0;
+    const first = await sandbox.DCFBackgroundTest.handleMessage(
+      { type: "GET_PROFILE_ROLE_PAGES", galleries },
+      dcSender
+    );
+    const roleCalls = () =>
+      fetchCalls.filter((call) => call.url.includes("/board/lists/?id="));
+    assert.equal(roleCalls().length, 20);
+    assert.ok(maxActive <= 2, `동시 요청 ${maxActive}개`);
+    // 실패한 1개(broken)는 결과에서 빠지고 나머지 19개만 돌려준다.
+    assert.equal(first.pages.length, 19);
+
+    fetchCalls.length = 0;
+    const second = await sandbox.DCFBackgroundTest.handleMessage(
+      { type: "GET_PROFILE_ROLE_PAGES", galleries },
+      dcSender
+    );
+    assert.equal(roleCalls().length, 0);
+    assert.equal(second.pages.length, 19);
+    assert.ok(sessionStored.nanatoolRolePageCache["minor:broken"].failed);
+  } finally {
+    sandbox.fetch = originalFetch;
+  }
+});
+
+test("역할 영역 추출은 중첩 태그를 끝까지 포함하고 다른 영역은 버린다", () => {
+  const { extractRoleSections } = sandbox.DCFBackgroundTest;
+  const html =
+    '<div id="top">위</div><div class="side info_cont box"><div class="tit">매니저</div><div><a href="https://gallog.dcinside.com/owner">a</a></div></div><div class="info_cont_wrap">제외</div><p>아래</p>';
+  const extracted = extractRoleSections(html);
+  assert.equal(
+    extracted,
+    '<div class="side info_cont box"><div class="tit">매니저</div><div><a href="https://gallog.dcinside.com/owner">a</a></div></div>'
+  );
+  assert.equal(extractRoleSections("<html>운영진 없음</html>"), "");
+});
+
+test("활동 정보 요청이 실패하면 30초 동안 다시 요청하지 않고 한국어 오류를 돌려준다", async () => {
+  fetchCalls.length = 0;
+  gallogRootFailures = 1;
+  const failing = { type: "GET_PROFILE_SOURCES", gallogId: "retry_user" };
+  await assert.rejects(
+    sandbox.DCFBackgroundTest.handleMessage(failing, dcSender),
+    (error) => {
+      assert.match(error.message, /갤로그 활동 정보를 불러오지 못했습니다/);
+      assert.doesNotMatch(error.message, /Failed to fetch/);
+      return true;
+    }
+  );
+  const gallogCalls = () =>
+    fetchCalls.filter((call) => call.url === "https://gallog.dcinside.com/");
+  assert.equal(gallogCalls().length, 1);
+  await assert.rejects(
+    sandbox.DCFBackgroundTest.handleMessage(failing, dcSender),
+    /갤로그 활동 정보를 불러오지 못했습니다/
+  );
+  assert.equal(gallogCalls().length, 1);
+  assert.equal(sandbox.DCFBackgroundTest.profileFailureTtl, 30000);
 });
 
 
@@ -806,5 +947,297 @@ test("외부 도메인의 이미지는 로컬 보관함에 저장하지 않는�
       dcViewSender
     ),
     /디시인사이드에 등록된 이미지/
+  );
+});
+
+test("GitHub 요청 제한 응답은 retry-after가 없으면 reset 시각, 그것도 없으면 30분 뒤로 미룬다", () => {
+  const { releaseRetryAfter } = sandbox.DCFBackgroundTest;
+  const now = Date.parse("2026-11-09T00:00:00.000Z");
+  const response = (headers) => new Response(null, { status: 403, headers });
+
+  assert.equal(
+    releaseRetryAfter(response({}), now),
+    new Date(now + 30 * 60 * 1000).toISOString()
+  );
+  assert.equal(
+    releaseRetryAfter(response({ "Retry-After": "120" }), now),
+    new Date(now + 120 * 1000).toISOString()
+  );
+  const resetSeconds = Math.floor(now / 1000) + 600;
+  assert.equal(
+    releaseRetryAfter(response({ "X-RateLimit-Reset": String(resetSeconds) }), now),
+    new Date(resetSeconds * 1000).toISOString()
+  );
+  assert.equal(
+    releaseRetryAfter(
+      response({ "Retry-After": "", "X-RateLimit-Reset": String(resetSeconds) }),
+      now
+    ),
+    new Date(resetSeconds * 1000).toISOString()
+  );
+  assert.equal(
+    releaseRetryAfter(
+      response({ "Retry-After": "Mon, 09 Nov 2026 01:00:00 GMT" }),
+      now
+    ),
+    "2026-11-09T01:00:00.000Z"
+  );
+  assert.equal(
+    releaseRetryAfter(response({ "Retry-After": "999999999" }), now),
+    new Date(now + 24 * 60 * 60 * 1000).toISOString()
+  );
+  assert.equal(
+    releaseRetryAfter(response({ "X-RateLimit-Reset": "1" }), now),
+    new Date(now + 30 * 60 * 1000).toISOString()
+  );
+});
+
+test("릴리스 버전은 1~4개 숫자 부분을 받아 0으로 채워 비교한다", () => {
+  const { parseNumericVersion, compareReleaseVersions, normalizeReleaseVersion } =
+    sandbox.DCFBackgroundTest;
+  assert.deepEqual(Array.from(parseNumericVersion("1.1")), [1, 1, 0, 0]);
+  assert.deepEqual(Array.from(parseNumericVersion("v2")), [2, 0, 0, 0]);
+  assert.deepEqual(Array.from(parseNumericVersion("1.2.3.4")), [1, 2, 3, 4]);
+  assert.equal(parseNumericVersion("1.2.3.4.5"), null);
+  assert.equal(parseNumericVersion("1..2"), null);
+  assert.equal(parseNumericVersion(""), null);
+  assert.equal(compareReleaseVersions("1.1", "1.0.1"), 1);
+  assert.equal(compareReleaseVersions("1.0", "1.0.0.0"), 0);
+  assert.equal(compareReleaseVersions("2", "1.9.9.9"), 1);
+  assert.equal(compareReleaseVersions("1.0.1", "1.1"), -1);
+  assert.equal(normalizeReleaseVersion("v1.1"), "1.1.0");
+  assert.equal(normalizeReleaseVersion("1.0.0.5"), "1.0.0.5");
+});
+
+test("빠른 설정은 활성 탭이 아니라 자신이 들어 있는 탭을 대상으로 한다", async () => {
+  const { embeddedHostTab, handleMessage } = sandbox.DCFBackgroundTest;
+  const hosted = {
+    url: "chrome-extension://test/embedded.html?embedded=1",
+    frameId: 3,
+    tab: {
+      id: 41,
+      url: "https://gall.dcinside.com/board/view/?id=test_gallery&no=5"
+    }
+  };
+  assert.deepEqual(
+    { ...embeddedHostTab(hosted) },
+    {
+      tabId: 41,
+      url: "https://gall.dcinside.com/board/view/?id=test_gallery&no=5"
+    }
+  );
+  const context = await handleMessage({ type: "GET_EMBED_CONTEXT" }, hosted);
+  assert.equal(context.tab.tabId, 41);
+
+  assert.equal(
+    embeddedHostTab({ ...hosted, tab: { id: 9, url: "https://example.com/" } })
+      .url,
+    ""
+  );
+  assert.equal(embeddedHostTab({ ...hosted, tab: undefined }), null);
+  assert.equal(embeddedHostTab({ ...hosted, tab: { id: -1 } }), null);
+  assert.equal(
+    embeddedHostTab({ url: "chrome-extension://test/popup.html", tab: hosted.tab }),
+    null
+  );
+  await assert.rejects(
+    handleMessage({ type: "GET_EMBED_CONTEXT" }, extensionSender),
+    /디시인사이드 탭을 확인하지 못했습니다/
+  );
+  await assert.rejects(
+    handleMessage({ type: "GET_EMBED_CONTEXT" }, profileWriteSender),
+    /디시인사이드 탭을 확인하지 못했습니다/
+  );
+});
+
+test("디시 탭 새로고침 신호는 content.js가 쓰는 값이 바뀔 때만 보낸다", () => {
+  const { stateChangeNeedsRefresh } = sandbox.DCFBackgroundTest;
+  const base = sandbox.DCFCore.defaultState();
+  const variant = (mutate) => {
+    const next = JSON.parse(JSON.stringify(base));
+    next.revision = base.revision + 1;
+    mutate(next);
+    return next;
+  };
+
+  assert.equal(stateChangeNeedsRefresh(undefined, base), true);
+  assert.equal(stateChangeNeedsRefresh(base, variant(() => {})), false);
+  assert.equal(
+    stateChangeNeedsRefresh(
+      base,
+      variant((next) => {
+        next.bookmarks.push({
+          id: "bookmark-1",
+          url: "https://gall.dcinside.com/board/view/?id=a&no=1",
+          note: "메모"
+        });
+        next.folders.push({ id: "folder-1", name: "새 폴더" });
+      })
+    ),
+    false
+  );
+  assert.equal(
+    stateChangeNeedsRefresh(
+      base,
+      variant((next) => {
+        next.imageFolders.push({ id: "image-folder-1", name: "보호", nsfw: true });
+      })
+    ),
+    false
+  );
+  assert.equal(
+    stateChangeNeedsRefresh(
+      base,
+      variant((next) => {
+        next.highlights.push({ id: "h1", matchType: "uid", value: "someone" });
+      })
+    ),
+    true
+  );
+  assert.equal(
+    stateChangeNeedsRefresh(
+      base,
+      variant((next) => {
+        next.settings.subjectFilterPanelOpacity = 50;
+      })
+    ),
+    true
+  );
+  assert.equal(
+    stateChangeNeedsRefresh(
+      base,
+      variant((next) => {
+        next.settings.bubbleImageDataUrl = "data:image/webp;base64,AA==";
+      })
+    ),
+    true
+  );
+  const withImage = variant((next) => {
+    next.imageBookmarks.push({
+      id: "image-1",
+      sourceUrl: "https://dcimg2.dcinside.co.kr/viewimage.php?id=a&no=1",
+      folderId: "image-inbox"
+    });
+  });
+  assert.equal(stateChangeNeedsRefresh(base, withImage), true);
+  const moved = JSON.parse(JSON.stringify(withImage));
+  moved.revision += 1;
+  moved.imageBookmarks[0].folderId = "image-folder-2";
+  moved.imageBookmarks[0].title = "새 이름";
+  assert.equal(stateChangeNeedsRefresh(withImage, moved), false);
+});
+
+test("이미지 저장 횟수 제한은 서비스 워커 메모리가 아니라 세션 저장소를 기준으로 한다", async () => {
+  const now = Date.now();
+  sessionStored.nanatoolImageSaveActivity = {
+    "page:0": Array.from({ length: 20 }, (_, index) => now - index * 10)
+  };
+  await assert.rejects(
+    sandbox.DCFBackgroundTest.handleMessage(
+      {
+        type: "SAVE_IMAGE_BOOKMARK",
+        userGesture: true,
+        bookmark: {
+          sourceUrl:
+            "https://dcimg2.dcinside.co.kr/viewimage.php?id=test_gallery&no=60"
+        }
+      },
+      dcViewSender
+    ),
+    /너무 빠르게 저장/
+  );
+  sessionStored.nanatoolImageSaveActivity = {
+    "page:0": [now - 61 * 1000]
+  };
+  const saved = await sandbox.DCFBackgroundTest.handleMessage(
+    {
+      type: "SAVE_IMAGE_BOOKMARK",
+      userGesture: true,
+      bookmark: {
+        sourceUrl:
+          "https://dcimg2.dcinside.co.kr/viewimage.php?id=test_gallery&no=60"
+      }
+    },
+    dcViewSender
+  );
+  assert.equal(saved.created, true);
+  assert.equal(sessionStored.nanatoolImageSaveActivity["page:0"].length, 1);
+  await sandbox.DCFBackgroundTest.handleMessage(
+    { type: "DELETE_IMAGE_BOOKMARK", id: saved.id },
+    extensionSender
+  );
+  delete sessionStored.nanatoolImageSaveActivity;
+});
+
+test("이미지 북마크 삭제는 상태 저장 뒤 파일을 지우고, 참조 없는 캐시 파일을 정리한다", async () => {
+  cachedImages.clear();
+  const saved = await sandbox.DCFBackgroundTest.handleMessage(
+    {
+      type: "SAVE_IMAGE_BOOKMARK",
+      bookmark: {
+        sourceUrl:
+          "https://dcimg2.dcinside.co.kr/viewimage.php?id=test_gallery&no=61"
+      }
+    },
+    extensionSender
+  );
+  const keep = sandbox.DCFImageStore.cacheKey(saved.id);
+  const orphan = sandbox.DCFImageStore.cacheKey("image-bookmark-orphan");
+  const foreign = "https://other.local/not-nanatool";
+  cachedImages.set(orphan, cachedImages.get(keep).clone());
+  cachedImages.set(foreign, cachedImages.get(keep).clone());
+
+  const removed = await sandbox.DCFBackgroundTest.collectImageGarbage({
+    force: true
+  });
+  assert.equal(removed, 1);
+  assert.ok(cachedImages.has(keep));
+  assert.ok(!cachedImages.has(orphan));
+  assert.ok(cachedImages.has(foreign));
+  assert.ok(Number.isFinite(sessionStored.nanatoolImageGcAt));
+  assert.equal(
+    await sandbox.DCFBackgroundTest.collectImageGarbage(),
+    0,
+    "하루 안에는 다시 정리하지 않는다"
+  );
+
+  const originalDelete = imageCache.delete;
+  let stateHadBookmarkAtDelete = null;
+  imageCache.delete = async (key) => {
+    stateHadBookmarkAtDelete = stored.dcFocusState.imageBookmarks.some(
+      (bookmark) => bookmark.id === saved.id
+    );
+    return originalDelete.call(imageCache, key);
+  };
+  try {
+    const deleted = await sandbox.DCFBackgroundTest.handleMessage(
+      { type: "DELETE_IMAGE_BOOKMARK", id: saved.id },
+      extensionSender
+    );
+    assert.equal(deleted.deleted, true);
+  } finally {
+    imageCache.delete = originalDelete;
+  }
+  assert.equal(stateHadBookmarkAtDelete, false);
+  assert.ok(!cachedImages.has(keep));
+  cachedImages.delete(foreign);
+});
+
+test("상태 기본값 생성 쓰기는 변경 큐를 거쳐 동시에 저장한 변경을 덮어쓰지 않는다", async () => {
+  delete stored.dcFocusState;
+  const mutation = sandbox.DCFBackgroundTest.mutateState((draft) => {
+    draft.highlights.push({
+      id: "queued-highlight",
+      matchType: "uid",
+      value: "queued_user",
+      createdAt: new Date().toISOString()
+    });
+  });
+  const read = sandbox.DCFBackgroundTest.readState();
+  await Promise.all([mutation, read]);
+  assert.ok(
+    stored.dcFocusState.highlights.some(
+      (highlight) => highlight.id === "queued-highlight"
+    )
   );
 });

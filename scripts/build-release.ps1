@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$OutputDirectory = ""
 )
 
@@ -12,8 +12,9 @@ $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $scriptDirectory ".."))
 $manifestPath = Join-Path $projectRoot "manifest.json"
 $fileListPath = Join-Path $projectRoot "release-files.txt"
 $iconDataPath = Join-Path $projectRoot "assets/icons/nanatool-icons.json"
-$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-$iconData = Get-Content -LiteralPath $iconDataPath -Raw | ConvertFrom-Json
+# Windows PowerShell 5.1은 BOM 없는 UTF-8을 시스템 코드 페이지로 읽으므로 인코딩을 명시한다.
+$manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$iconData = Get-Content -LiteralPath $iconDataPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $version = [string]$manifest.version
 
 if ($version -notmatch '^\d+\.\d+\.\d+$') {
@@ -38,8 +39,8 @@ if (Test-Path -LiteralPath $archivePath) {
   Remove-Item -LiteralPath $archivePath -Force
 }
 
-$releaseFiles = Get-Content -LiteralPath $fileListPath |
-  ForEach-Object { $_.Trim() } |
+$releaseFiles = Get-Content -LiteralPath $fileListPath -Encoding UTF8 |
+  ForEach-Object { $_.Trim().TrimStart([char]0xFEFF) } |
   Where-Object { $_ -and -not $_.StartsWith("#") }
 
 $iconPaths = [ordered]@{

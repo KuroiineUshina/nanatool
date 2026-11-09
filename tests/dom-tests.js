@@ -305,7 +305,9 @@ test("설정창에 말머리 체크박스와 보기·안 보기 스위치를 표
       .map((option) => option.textContent)
       .join(",") === "사이트 기본값,A,B,🐥C,D" &&
     panel.querySelector("input[value='A']").checked &&
-    !panel.querySelector("[data-dcf-subject-status]") &&
+    panel.querySelector("[data-dcf-subject-status]")?.textContent === "" &&
+    getComputedStyle(panel.querySelector("[data-dcf-subject-status]"))
+      .display === "none" &&
     panel.querySelector("#dcf-subject-filter-opacity")?.min === "0" &&
     panel.querySelector("#dcf-subject-filter-opacity")?.max === "100" &&
     panel.querySelector("#dcf-subject-filter-opacity")?.step === "5" &&
@@ -453,8 +455,9 @@ test("활동 명함을 글 꼬리말 맨 뒤에 한 번만 삽입", () => {
       '<div data-nanatool-profile-card style="position:relative;position:fixed" onclick="alert(1)"><img data-nanatool-character src="{{캐릭터이미지}}"><strong>{{닉네임}}</strong><span>글댓비 {{글댓비}}</span><div data-nanatool-managed-galleries><a data-nanatool-managed-gallery-template><img data-nanatool-managed-gallery-badge><span data-nanatool-managed-gallery-role>운영</span><span data-nanatool-managed-gallery-name>갤러리</span></a></div><script>alert(1)</script></div>'
   };
   DCFContentTest.setStateForTest(testState);
+  // 활동 정보는 5분이 지나면 쓰지 않으므로 지금 시각으로 넣는다.
   DCFContentTest.setProfileSnapshotForTest({
-    savedAt: 123,
+    savedAt: Date.now(),
     profile: {
       gallogId: "tester",
       nickname: "테스트사용자",

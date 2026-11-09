@@ -21,6 +21,9 @@ jobs:
           node-version: 22
       - name: Run unit tests
         run: node --test tests/*.test.js
-      - name: Validate release package
+      - name: Build release package
         shell: pwsh
         run: ./scripts/build-release.ps1 -OutputDirectory "$env:RUNNER_TEMP/nanatool-dist"
+      - name: Verify release package
+        shell: pwsh
+        run: ./scripts/verify-release.ps1 -OutputDirectory "$env:RUNNER_TEMP/nanatool-dist"
