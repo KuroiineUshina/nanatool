@@ -22,5 +22,6 @@ nana-profile-footer-template.txt
 assets/bootstrap-eye.svg
 assets/bootstrap-eye-slash.svg
 assets/pretendard-local.css
+assets/nanatool-tokens.css
 assets/service-header.css
 assets/release-update.js

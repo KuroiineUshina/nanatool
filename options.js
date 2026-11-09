@@ -1130,7 +1130,7 @@ elements.bubbleImageReset.addEventListener("click", async () => {
     renderSettings();
     clearBubbleCropImage();
     setBubbleImageStatus("버블 이미지를 제거했습니다.");
-    toast("투명한 글래스 버블로 변경했습니다.");
+    toast("기본 버블로 변경했습니다.");
   } catch (error) {
     setBubbleImageStatus(error.message, "error");
     toast(error.message, "error");

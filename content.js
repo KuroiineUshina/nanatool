@@ -93,6 +93,8 @@
   const FLOATING_RIGHT_GAP = 24;
   const FLOATING_PANEL_GAP = 12;
   const FLOATING_PANEL_WIDTH = 440;
+  // 버블 패널 위쪽 머리 영역(content.css .dcf-floating-panel-header 높이)
+  const FLOATING_PANEL_HEADER_HEIGHT = 52;
   const FLOATING_DRAG_THRESHOLD = 5;
   const CURRENT_SUBJECT_SESSION_PREFIX = "nanatool-current-subject:";
   const PROFILE_SNAPSHOT_TTL = 5 * 60 * 1000;
@@ -798,7 +800,8 @@
       gallogId,
       nickname: nickname || gallogId,
       profileImageUrl: gallogProfileImageUrl(documentNode, gallogId),
-      posts: countFor("게시글"),
+      // 디시 갤로그 표기가 "게시물"로 바뀜 (예전 "게시글"도 계속 읽음)
+      posts: countFor("게시물") ?? countFor("게시글"),
       comments: countFor("댓글"),
       todayVisitors: parseProfileCount(
         documentNode.querySelector(".visitors_num em.today_num")?.textContent
@@ -2442,7 +2445,8 @@
     status.dataset.dcfSubjectStatus = "true";
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
-    panel.append(heading, modeRow, writeSettings, list, empty, status, footer);
+    // 화면 순서: 체크 항목 행과 말머리 칩을 한 카드로 붙이고, 그 아래 글쓰기 말머리·불투명도.
+    panel.append(heading, modeRow, list, empty, status, writeSettings, footer);
     (document.body || document.documentElement).append(panel);
     return panel;
   }
@@ -2714,7 +2718,10 @@
 
     const bubbleRect = bubble.getBoundingClientRect();
     const maxPanelHeight = Math.max(140, viewportHeight - viewportGap * 2);
-    const requestedPanelHeight = Number(panel.dataset.contentHeight) || 460;
+    // 빠른 설정 내용 높이에 패널 머리 영역 높이를 더한다.
+    const requestedPanelHeight =
+      (Number(panel.dataset.contentHeight) || 460) +
+      FLOATING_PANEL_HEADER_HEIGHT;
     const panelHeight = clamp(requestedPanelHeight, 140, maxPanelHeight);
     panel.style.setProperty(
       "height",
@@ -3015,7 +3022,24 @@
       `embedded.html?embedded=1&parentOrigin=${encodeURIComponent(location.origin)}`
     );
     frame.setAttribute("loading", "eager");
-    panel.append(frame);
+
+    // 원 UI 시트처럼 위쪽에 작은 머리 영역(제목·닫기)을 둔다.
+    const header = document.createElement("div");
+    header.className = "dcf-floating-panel-header";
+    const headerTitle = document.createElement("strong");
+    headerTitle.className = "dcf-floating-panel-title";
+    headerTitle.textContent = "나나툴";
+    const headerClose = document.createElement("button");
+    headerClose.type = "button";
+    headerClose.className = "dcf-floating-panel-close";
+    headerClose.textContent = "×";
+    headerClose.setAttribute("aria-label", "나나툴 빠른 설정 닫기");
+    headerClose.addEventListener("click", () => {
+      setFloatingPanelOpen(false);
+      document.getElementById("dcf-floating-bubble")?.focus();
+    });
+    header.append(headerTitle, headerClose);
+    panel.append(header, frame);
 
     const bubble = document.createElement("div");
     bubble.id = "dcf-floating-bubble";

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>전체 설정 · 나나툴</title>
     <link rel="stylesheet" href="assets/pretendard-local.css">
+    <link rel="stylesheet" href="assets/nanatool-tokens.css">
     <link rel="stylesheet" href="options.css">
     <link rel="stylesheet" href="assets/service-header.css">
   </head>
@@ -45,53 +46,55 @@
           </div>
         </div>
 
-        <div class="bubble-image-editor">
-          <div class="bubble-crop-column">
-            <div class="bubble-crop-stage">
-              <canvas
-                id="bubble-crop-canvas"
-                width="320"
-                height="320"
-                aria-label="버블 이미지 자르기 영역"
-              ></canvas>
-            </div>
-            <p class="bubble-crop-help">이미지를 드래그하고 확대해서 원 안에 원하는 부분을 맞추세요.</p>
-          </div>
-
-          <div class="bubble-image-controls">
-            <div class="bubble-current-preview">
-              <span class="bubble-current-image-frame" aria-hidden="true">
-                <img id="bubble-current-image" alt="">
-              </span>
-              <span>
-                <strong>현재 적용 이미지</strong>
-                <small>이미지가 없으면 투명한 글래스 버블로 표시됩니다.</small>
-              </span>
+        <div class="card-body">
+          <div class="bubble-image-editor">
+            <div class="bubble-crop-column">
+              <div class="bubble-crop-stage">
+                <canvas
+                  id="bubble-crop-canvas"
+                  width="320"
+                  height="320"
+                  aria-label="버블 이미지 자르기 영역"
+                ></canvas>
+              </div>
+              <p class="bubble-crop-help">이미지를 드래그하고 확대해서 원 안에 원하는 부분을 맞추세요.</p>
             </div>
 
-            <label class="bubble-file-button">
-              <span>이미지 선택</span>
-              <input id="bubble-image-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
-            </label>
+            <div class="bubble-image-controls">
+              <div class="bubble-current-preview">
+                <span class="bubble-current-image-frame" aria-hidden="true">
+                  <img id="bubble-current-image" alt="">
+                </span>
+                <span>
+                  <strong>현재 적용 이미지</strong>
+                  <small>이미지가 없으면 기본 버블로 표시됩니다.</small>
+                </span>
+              </div>
 
-            <label class="field bubble-size-field">
-              <span class="bubble-range-label">
-                버블 크기
-                <output id="bubble-size-value" for="bubble-size">64px</output>
-              </span>
-              <input id="bubble-size" type="range" min="40" max="120" step="4" value="64">
-            </label>
+              <label class="bubble-file-button">
+                <span>이미지 선택</span>
+                <input id="bubble-image-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+              </label>
 
-            <label class="field bubble-zoom-field">
-              <span>확대</span>
-              <input id="bubble-image-zoom" type="range" min="1" max="3" step="0.01" value="1">
-            </label>
+              <label class="field bubble-size-field">
+                <span class="bubble-range-label">
+                  버블 크기
+                  <output id="bubble-size-value" for="bubble-size">64px</output>
+                </span>
+                <input id="bubble-size" type="range" min="40" max="120" step="4" value="64">
+              </label>
 
-            <p id="bubble-image-status" class="bubble-image-status">현재 이미지를 불러오는 중…</p>
+              <label class="field bubble-zoom-field">
+                <span>확대</span>
+                <input id="bubble-image-zoom" type="range" min="1" max="3" step="0.01" value="1">
+              </label>
 
-            <div class="button-row bubble-image-actions">
-              <button id="bubble-image-apply" class="primary-button" type="button" disabled>이 프레임으로 적용</button>
-              <button id="bubble-image-reset" class="secondary-button" type="button">이미지 제거</button>
+              <p id="bubble-image-status" class="bubble-image-status">현재 이미지를 불러오는 중…</p>
+
+              <div class="button-row bubble-image-actions">
+                <button id="bubble-image-apply" class="primary-button" type="button" disabled>이 프레임으로 적용</button>
+                <button id="bubble-image-reset" class="secondary-button" type="button">이미지 제거</button>
+              </div>
             </div>
           </div>
         </div>
@@ -105,7 +108,7 @@
           </div>
         </div>
 
-        <div class="setting-grid">
+        <div class="card-body setting-grid">
           <label class="toggle-card">
             <span>
               <strong>유동 게시물 숨기기</strong>
@@ -143,73 +146,75 @@
           댓글 꼬리말은 일반 텍스트만 지원합니다.
         </p>
 
-        <form id="affix-form" class="affix-form">
-          <label class="field">
-            <span>갤러리 종류</span>
-            <select id="affix-gallery-kind">
-              <option value="major">정식 갤러리</option>
-              <option value="minor">마이너 갤러리</option>
-              <option value="mini">미니 갤러리</option>
-              <option value="person">인물 갤러리</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>갤러리 식별자</span>
-            <input id="affix-gallery-id" type="text" maxlength="100" required placeholder="주소의 id 값">
-          </label>
-          <label class="field">
-            <span>표시 이름 (선택)</span>
-            <input id="affix-gallery-name" type="text" maxlength="100" placeholder="예: 프로그래밍">
-          </label>
-          <label class="field affix-wide">
-            <span>글 머리말</span>
-            <textarea id="affix-post-header" rows="3" maxlength="300" placeholder="글 본문 맨 앞에 붙일 문구"></textarea>
-          </label>
-          <div class="affix-style-row affix-wide">
-            <div class="field affix-color-setting">
-              <span>머리말 글자색</span>
-              <div class="affix-color-controls">
-                <label class="compact-toggle">
-                  <input id="affix-post-header-color-enabled" type="checkbox">
-                  <span>적용</span>
-                </label>
-                <input id="affix-post-header-color" class="affix-color-input" type="color" value="#000000" aria-label="머리말 글자색" disabled>
-              </div>
-            </div>
-            <label class="field affix-css-field">
-              <span>머리말 CSS 선언 (선택)</span>
-              <textarea id="affix-post-header-css" rows="2" maxlength="1000" placeholder="예: font-size: 18px; font-weight: 700; text-align: center"></textarea>
+        <div class="card-body">
+          <form id="affix-form" class="affix-form">
+            <label class="field">
+              <span>갤러리 종류</span>
+              <select id="affix-gallery-kind">
+                <option value="major">정식 갤러리</option>
+                <option value="minor">마이너 갤러리</option>
+                <option value="mini">미니 갤러리</option>
+                <option value="person">인물 갤러리</option>
+              </select>
             </label>
-          </div>
-          <label class="field affix-wide">
-            <span>글 꼬리말 (텍스트·HTML 템플릿)</span>
-            <textarea id="affix-post-footer" rows="9" maxlength="16000" placeholder="일반 문구 또는 붙여넣기용 HTML/CSS 템플릿"></textarea>
-          </label>
-          <div class="affix-style-row affix-wide">
-            <div class="field affix-color-setting">
-              <span>꼬리말 글자색</span>
-              <div class="affix-color-controls">
-                <label class="compact-toggle">
-                  <input id="affix-post-footer-color-enabled" type="checkbox">
-                  <span>적용</span>
-                </label>
-                <input id="affix-post-footer-color" class="affix-color-input" type="color" value="#000000" aria-label="꼬리말 글자색" disabled>
-              </div>
-            </div>
-            <label class="field affix-css-field">
-              <span>꼬리말 CSS 선언 (선택)</span>
-              <textarea id="affix-post-footer-css" rows="2" maxlength="1000" placeholder="예: color: #777; font-size: 13px; text-align: right"></textarea>
+            <label class="field">
+              <span>갤러리 식별자</span>
+              <input id="affix-gallery-id" type="text" maxlength="100" required placeholder="주소의 id 값">
             </label>
-          </div>
-          <label class="field affix-wide">
-            <span>댓글 꼬리말</span>
-            <textarea id="affix-comment-footer" rows="2" maxlength="100" placeholder="댓글·답글 맨 뒤에 붙일 문구"></textarea>
-          </label>
-          <div class="affix-actions affix-wide">
-            <button id="affix-submit" class="primary-button compact" type="submit">설정 추가</button>
-            <button id="affix-cancel" class="secondary-button compact" type="button" hidden>편집 취소</button>
-          </div>
-        </form>
+            <label class="field">
+              <span>표시 이름 (선택)</span>
+              <input id="affix-gallery-name" type="text" maxlength="100" placeholder="예: 프로그래밍">
+            </label>
+            <label class="field affix-wide">
+              <span>글 머리말</span>
+              <textarea id="affix-post-header" rows="3" maxlength="300" placeholder="글 본문 맨 앞에 붙일 문구"></textarea>
+            </label>
+            <div class="affix-style-row affix-wide">
+              <div class="field affix-color-setting">
+                <span>머리말 글자색</span>
+                <div class="affix-color-controls">
+                  <label class="compact-toggle">
+                    <input id="affix-post-header-color-enabled" type="checkbox">
+                    <span>적용</span>
+                  </label>
+                  <input id="affix-post-header-color" class="affix-color-input" type="color" value="#000000" aria-label="머리말 글자색" disabled>
+                </div>
+              </div>
+              <label class="field affix-css-field">
+                <span>머리말 CSS 선언 (선택)</span>
+                <textarea id="affix-post-header-css" rows="2" maxlength="1000" placeholder="예: font-size: 18px; font-weight: 700; text-align: center"></textarea>
+              </label>
+            </div>
+            <label class="field affix-wide">
+              <span>글 꼬리말 (텍스트·HTML 템플릿)</span>
+              <textarea id="affix-post-footer" rows="9" maxlength="16000" placeholder="일반 문구 또는 붙여넣기용 HTML/CSS 템플릿"></textarea>
+            </label>
+            <div class="affix-style-row affix-wide">
+              <div class="field affix-color-setting">
+                <span>꼬리말 글자색</span>
+                <div class="affix-color-controls">
+                  <label class="compact-toggle">
+                    <input id="affix-post-footer-color-enabled" type="checkbox">
+                    <span>적용</span>
+                  </label>
+                  <input id="affix-post-footer-color" class="affix-color-input" type="color" value="#000000" aria-label="꼬리말 글자색" disabled>
+                </div>
+              </div>
+              <label class="field affix-css-field">
+                <span>꼬리말 CSS 선언 (선택)</span>
+                <textarea id="affix-post-footer-css" rows="2" maxlength="1000" placeholder="예: color: #777; font-size: 13px; text-align: right"></textarea>
+              </label>
+            </div>
+            <label class="field affix-wide">
+              <span>댓글 꼬리말</span>
+              <textarea id="affix-comment-footer" rows="2" maxlength="100" placeholder="댓글·답글 맨 뒤에 붙일 문구"></textarea>
+            </label>
+            <div class="affix-actions affix-wide">
+              <button id="affix-submit" class="primary-button compact" type="submit">설정 추가</button>
+              <button id="affix-cancel" class="secondary-button compact" type="button" hidden>편집 취소</button>
+            </div>
+          </form>
+        </div>
 
         <div id="affix-list" class="affix-list"></div>
       </section>
@@ -242,23 +247,25 @@
           게시물에서 나나툴 팝업을 열면 현재 작성자를 바로 추가할 수 있습니다.
         </p>
 
-        <form id="highlight-form" class="highlight-form">
-          <label class="field grow">
-            <span>등록 식별 코드</span>
-            <input id="highlight-value" type="text" maxlength="80" required placeholder="예: sample_id">
-          </label>
-          <label class="field grow">
-            <span>표시 이름 (선택)</span>
-            <input id="highlight-label" type="text" maxlength="80" placeholder="예: 자주 보는 작성자">
-          </label>
-          <label class="field color-field">
-            <span>색상</span>
-            <input id="highlight-color" type="color" value="#fff1a8">
-          </label>
-          <button class="primary-button compact" type="submit">추가</button>
-        </form>
+        <div class="card-body highlight-body">
+          <form id="highlight-form" class="highlight-form">
+            <label class="field grow">
+              <span>등록 식별 코드</span>
+              <input id="highlight-value" type="text" maxlength="80" required placeholder="예: sample_id">
+            </label>
+            <label class="field grow">
+              <span>표시 이름 (선택)</span>
+              <input id="highlight-label" type="text" maxlength="80" placeholder="예: 자주 보는 작성자">
+            </label>
+            <label class="field color-field">
+              <span>색상</span>
+              <input id="highlight-color" type="color" value="#fff1a8">
+            </label>
+            <button class="primary-button compact" type="submit">추가</button>
+          </form>
 
-        <div id="highlight-list" class="chip-list"></div>
+          <div id="highlight-list" class="chip-list"></div>
+        </div>
       </section>
 
       <section class="card bookmarks-card" aria-labelledby="bookmarks-title">
@@ -273,7 +280,7 @@
           </label>
         </div>
 
-        <div class="bookmark-workspace">
+        <div class="card-body bookmark-workspace">
           <aside class="folder-sidebar">
             <button id="folder-all" class="folder-button is-active" type="button">
               <span>전체</span><strong id="folder-all-count">0</strong>

@@ -16,7 +16,7 @@ test("사용자 화면의 브랜드명을 나나툴로 통일한다", () => {
   assert.equal(manifest.name, "나나툴");
   assert.equal(manifest.short_name, "나나툴");
   assert.equal(manifest.action.default_title, "나나툴");
-  assert.equal(manifest.version, "1.0.1");
+  assert.equal(manifest.version, "1.1.0");
   assert.equal(manifest.minimum_chrome_version, "105");
 
   assert.match(read("popup.html"), /<p class="eyebrow">Nana Tool<\/p>/);
@@ -145,10 +145,16 @@ test("빠른 설정의 불필요한 상태 배지를 정리하고 창을 확대�
     contentCss,
     /html:has\(#css-darkmode\) #dcf-floating-panel/
   );
-  assert.match(
-    popupCss,
-    /:root\[data-theme="dark"\][\s\S]*?--glass-panel-filter:\s*blur\(18px\)/
-  );
+  // 원 UI 기준: 다크 테마는 data-theme 전환으로 --nt-* 토큰만 바꾸고(진짜 검정 바탕),
+  // 유리 흐림(Liquid Glass) 없이 불투명한 면을 쓴다.
+  const tokensCss = read("assets/nanatool-tokens.css");
+  for (const page of [html, read("embedded.html")]) {
+    assert.match(page, /assets\/nanatool-tokens\.css/);
+  }
+  assert.match(tokensCss, /:root\[data-theme="dark"\]\s*\{[\s\S]*?--nt-bg:\s*#000000/i);
+  assert.match(popupCss, /\nbody\s*\{[\s\S]*?background:\s*var\(--nt-bg\)/);
+  assert.match(popupCss, /\.panel-card\s*\{[\s\S]*?background:\s*var\(--nt-surface\)/);
+  assert.doesNotMatch(popupCss, /backdrop-filter|blur\(/);
 });
 
 test("전체 설정에서 버블 이미지를 프레임에 맞춰 저장하고 화면을 왕복한다", () => {
@@ -255,25 +261,38 @@ test("전체 설정은 불투명한 플랫 테마를 최종 적용한다", () =>
   const html = read("options.html");
   const script = read("options.js");
   const css = read("options.css");
-  const flatTheme = css.slice(css.lastIndexOf("/* Flat settings theme */"));
-  const flatCore = flatTheme.slice(
-    0,
-    flatTheme.indexOf("/* Borderless settings theme */")
-  );
+  const tokens = read("assets/nanatool-tokens.css");
+  const header = read("assets/service-header.css");
 
   assert.doesNotMatch(html, /class="stats"|class="local-badge"/);
   assert.doesNotMatch(html, /이 기기에만 저장|제출 직전에 적용/);
   assert.doesNotMatch(script, /renderStats|folderSelect|북마크 폴더/);
   assert.doesNotMatch(css, /\.stats|\.local-badge|--flat-stat/);
-  assert.ok(flatTheme.length > 0);
-  assert.match(flatTheme, /background:\s*var\(--flat-page\)/);
-  assert.match(flatTheme, /\.card[\s\S]*?background:\s*var\(--flat-surface\)/);
-  assert.match(flatTheme, /backdrop-filter:\s*none/);
-  assert.match(flatTheme, /box-shadow:\s*none/);
-  assert.doesNotMatch(flatCore, /linear-gradient|radial-gradient|blur\(/);
-  assert.match(flatTheme, /\.layout\s*\{[\s\S]*?gap:\s*24px/);
-  assert.match(flatTheme, /\.card:not\(\.bookmarks-card\)[\s\S]*?padding:\s*28px/);
-  assert.match(flatTheme, /\.setting-grid \+ \.section-note[\s\S]*?margin:\s*18px 0 0/);
+  // 원 UI 기준: 회색 바탕(--nt-bg #F2F2F2) 위 그림자 없는 평평한 카드 그룹(--nt-surface #FCFCFC, radius 26).
+  // 유리 흐림·배경 그라데이션 없이 플랫하게, 머리 영역도 불투명.
+  assert.match(html, /assets\/nanatool-tokens\.css/);
+  assert.match(tokens, /--nt-bg:\s*#f2f2f2/i);
+  assert.match(tokens, /--nt-surface:\s*#fcfcfc/i);
+  assert.match(tokens, /--nt-radius-card:\s*26px/);
+  assert.match(tokens, /--nt-shadow:\s*none/);
+  // 원 UI 보기 영역: 큰 제목 40px/600
+  assert.match(header, /\.service-brand h1\s*\{[\s\S]*?font-size:\s*40px/);
+  assert.match(header, /\.service-brand h1\s*\{[\s\S]*?font-weight:\s*600/);
+  assert.match(css, /\nbody\s*\{[\s\S]*?background:\s*var\(--nt-bg\)/);
+  assert.match(css, /\.card-body\s*\{[\s\S]*?background:\s*var\(--nt-surface\)/);
+  assert.match(css, /\.card-body\s*\{[\s\S]*?border-radius:\s*var\(--nt-radius-card\)/);
+  assert.match(css, /\.card-body\s*\{[\s\S]*?box-shadow:\s*var\(--nt-shadow\)/);
+  for (const sheet of [css, header]) {
+    assert.doesNotMatch(sheet, /backdrop-filter|radial-gradient|blur\(/);
+  }
+  // 슬라이더 채움(border-image 한 색) 외에는 그라데이션을 쓰지 않는다.
+  assert.doesNotMatch(
+    css.replace(/border-image:\s*linear-gradient\(var\(--nt-primary\) 0 0\)/g, ""),
+    /linear-gradient/
+  );
+  assert.match(css, /\.layout\s*\{[\s\S]*?max-width:\s*752px/);
+  assert.match(css, /\.layout\s*\{[\s\S]*?gap:\s*32px/);
+  assert.match(css, /\.setting-grid\s*\{[\s\S]*?padding:\s*4px 0/);
 });
 
 test("전체 설정과 버블 메뉴 및 말머리 설정은 테두리를 사용하지 않는다", () => {
@@ -306,15 +325,34 @@ test("전체 설정과 말머리 설정 스위치는 버블 메뉴 규격을 따
     read("content.css").lastIndexOf("/* Bubble-menu switch standard */")
   );
 
-  for (const css of [optionsCss, contentCss]) {
-    assert.match(css, /height:\s*22px/);
-    assert.match(css, /width:\s*38px/);
+  // 말머리 설정(content.css)도 같은 원 UI 스위치: 트랙 44×24, 꺼짐 = 2px 회색 테두리(안쪽 그림자)
+  // + 회색 손잡이 16, 켜짐 = 강조 채움 + 흰 손잡이 18(20px 이동·1.125배), 0.2s 움직임
+  assert.match(contentCss, /width:\s*44px/);
+  assert.match(contentCss, /height:\s*24px/);
+  assert.match(contentCss, /height:\s*16px/);
+  assert.match(contentCss, /width:\s*16px/);
+  assert.match(contentCss, /box-shadow:\s*inset 0 0 0 2px var\(--nt-switch-off\)/);
+  assert.match(contentCss, /background:\s*var\(--nt-switch-off\)/);
+  assert.match(contentCss, /background:\s*var\(--nt-primary\)/);
+  assert.match(contentCss, /background:\s*var\(--nt-switch-knob-on\)/);
+  assert.match(contentCss, /translateX\(20px\) scale\(1\.125\)/);
+  assert.match(contentCss, /transition:\s*transform 0\.2s/);
+
+  // 전체 설정·팝업(빠른 설정)은 원 UI 스위치: 트랙 44×24, 꺼짐 = 2px 회색 테두리 트랙 + 회색 손잡이 16,
+  // 켜짐 = 강조 채움 + 흰 손잡이 18(16px 손잡이를 20px 옮기고 1.125배), 0.2s 움직임
+  const popupCss = read("popup.css");
+  for (const css of [optionsCss, popupCss]) {
+    assert.match(css, /width:\s*44px/);
+    assert.match(css, /height:\s*24px/);
     assert.match(css, /height:\s*16px/);
     assert.match(css, /width:\s*16px/);
-    assert.match(css, /translateX\(16px\)/);
-    assert.match(css, /#6d82ed/);
-    assert.match(css, /#725fc9/);
+    assert.match(css, /box-shadow:\s*inset 0 0 0 2px var\(--nt-switch-off\)/);
+    assert.match(css, /background:\s*var\(--nt-switch-off\)/);
+    assert.match(css, /background:\s*var\(--nt-primary\)/);
+    assert.match(css, /background:\s*var\(--nt-switch-knob-on\)/);
+    assert.match(css, /translateX\(20px\) scale\(1\.125\)/);
   }
+  assert.match(optionsCss, /transition:\s*transform 0\.2s/);
 });
 
 test("갤러리아 UI는 컨테이너와 조작 요소의 테두리를 사용하지 않는다", () => {
